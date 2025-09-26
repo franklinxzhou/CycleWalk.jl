@@ -104,7 +104,7 @@ name = "small square test graph (weighted), 4 districts, pop=8, gamma∈{0,1}"
     weighed_graph = weight_small_square_base_graph()
 
     observed_cuts = get_observed_cut_edges(weighed_graph, constraints, 4,
-                                           cycle_steps=100_000,
+                                           cycle_steps=200_000,
                                            cut_edge_field="unit")
 
     # check that the observed districts cut counts are correct 
