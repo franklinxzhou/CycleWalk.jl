@@ -3,9 +3,14 @@
 
 ## Activate the CycleWalk environment  and load necessary packages
 import Pkg
+<<<<<<< HEAD
 push!(LOAD_PATH, "..")
 # Pkg.activate("./runCycleWalkEnv")
 # Pkg.instantiate()
+=======
+Pkg.activate(".")
+Pkg.instantiate()
+>>>>>>> 5f87f978c4c152e4aced33ba2b78adfc8620c4d7
 
 using RandomNumbers
 using CycleWalk
