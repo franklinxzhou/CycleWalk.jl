@@ -629,8 +629,8 @@ end
 function MultiLevelGraph(
     filepath::AbstractString,
     pop_col::AbstractString,
-    levels::Union{String, Vector{String}};
-    inc_node_data::Set{String}=Set(),
+    levels::Union{String, Vector{String}},
+    inc_node_data::Set{String}=Set();
     edge_weights::String="connections",
     bpop_col=nothing,
     vap_col=nothing,
