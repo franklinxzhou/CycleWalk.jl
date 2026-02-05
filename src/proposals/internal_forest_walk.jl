@@ -43,11 +43,13 @@ end
 
 function internal_forest_walk!(
     partition::LinkCutPartition,
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint},
     rng::AbstractRNG;
-    diagnostics::Union{Nothing,ProposalDiagnostics}=nothing
+    diagnostics::Union{Nothing,ProposalDiagnostics}=nothing,
+    edge::Union{Tuple{Int64, Int64}, Nothing}=nothing
 )
-    edge = get_rand_internal_edge(partition, rng)
+    if edge !== nothing
+        edge = get_rand_internal_edge(partition, rng)
+    end
 
     u = partition.lct.nodes[edge[1]]
     v = partition.lct.nodes[edge[2]]
@@ -91,9 +93,10 @@ end
 function build_internal_forest_walk(
     constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint}
 )
-    f(p, r; diagnostics=nothing) = internal_forest_walk!(p, constraints, r;
+    f(p, r; diagnostics=nothing) = internal_forest_walk!(p, r;
                                                         diagnostics=diagnostics)
     return f
 end
 
 const build_one_tree_cycle_walk = build_internal_forest_walk
+const one_tree_cycle_walk! = internal_forest_walk!
