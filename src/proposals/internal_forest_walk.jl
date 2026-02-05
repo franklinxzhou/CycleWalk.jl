@@ -47,7 +47,7 @@ function internal_forest_walk!(
     diagnostics::Union{Nothing,ProposalDiagnostics}=nothing,
     edge::Union{Tuple{Int64, Int64}, Nothing}=nothing
 )
-    if edge !== nothing
+    if edge === nothing
         edge = get_rand_internal_edge(partition, rng)
     end
 
