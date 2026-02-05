@@ -51,12 +51,16 @@ struct LinkCutTree{T<:Integer}
         t = new(n)
         return t
     end
-
 end
 #linkCutForest{T}() where {T<:Integer} = linkCutFoest{T}(Vector{Union{Node, Nothing}}[])
 # function Base.getindex(lct::LinkCutTree, ii::Int) where {T<:Integer} 
 #     return lct.nodes[ii]
 # end
+
+function Base.getindex(lct::LinkCutTree, ind::T) where T<:Int
+    # Define special lookup logic
+    return lct.nodes[ind]
+end
 
 """
 Returns a vector of integers, each entry i indicating the index of the parent of the node at index i.
