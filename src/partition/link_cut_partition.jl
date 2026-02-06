@@ -87,6 +87,19 @@ function get_district_roots(lct::LinkCutTree)
 end
 
 """"""
+function get_district(
+    ind::Int64,
+    target_districts::Vector{Int64},
+    node_to_dist::Vector{Int64},
+    node_to_dist_update::Union{Nothing, Vector{Int64}}=nothing
+)
+    if node_to_dist[ind] ∈ target_districts && node_to_dist_update !== nothing
+        return node_to_dist_update[ind]
+    end
+    return node_to_dist[ind]
+end
+
+""""""
 function find_cross_district_edges!(
     lcp::LinkCutPartition,
     districts::Vector{Int} = collect(1:lcp.num_dists),
@@ -94,10 +107,11 @@ function find_cross_district_edges!(
     = lcp.cross_district_edges;
     update = false
 )
+    node_to_dist = lcp.node_to_dist
     if update
-        node_to_dist = lcp.node_to_dist_update
+        node_to_dist_update = lcp.node_to_dist_update
     else
-        node_to_dist = lcp.node_to_dist
+        node_to_dist_update = nothing
     end
     graph = lcp.graph
     simple_graph = graph.simple_graph
@@ -112,7 +126,9 @@ function find_cross_district_edges!(
                 if visited_nodes[n] continue end
                 if get_weight(simple_graph, v, n) == 0 continue end
                 # rn = find_root!(lcp.lct.nodes[n]).vertex
-                dj = node_to_dist[n]
+                # dj = node_to_dist[n]
+                dj = get_district(n, districts, node_to_dist, 
+                                  node_to_dist_update)
                 # if (rn == r) != (dj == di)
                 #     @show "problem here"
                 #     @show n, rn, r, di, dj
@@ -123,7 +139,7 @@ function find_cross_district_edges!(
                     push!(queue, n)
                 else
                     # dj = lcp.roots_to_district[rn]
-                    dij = (min(di,dj), max(di, dj))
+                    dij = (min(di,dj), max(di,dj))
                     if !haskey(cross_district_edges, dij)
                         cross_district_edges[dij] =Set{SimpleWeightedEdge}()
                     end 
