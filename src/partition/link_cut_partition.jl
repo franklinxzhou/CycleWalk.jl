@@ -139,7 +139,7 @@ function find_cross_district_edges!(
                     push!(queue, n)
                 else
                     # dj = lcp.roots_to_district[rn]
-                    dij = (min(di,dj), max(di,dj))
+                    dij = (min(di,dj), max(di, dj))
                     if !haskey(cross_district_edges, dij)
                         cross_district_edges[dij] =Set{SimpleWeightedEdge}()
                     end 
