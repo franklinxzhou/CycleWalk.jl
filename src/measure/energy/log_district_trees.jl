@@ -1,5 +1,5 @@
 """"""
-function get_log_linking_edges(
+function get_log_district_trees(
     partition::LinkCutPartition,
     update::Union{Update{T}, Nothing}=nothing,
 )::Float64 where T <: Int
@@ -10,7 +10,8 @@ function get_log_linking_edges(
         new_cross_d_edg = update.new_cross_d_edg
     end
 
-    log_linking_edge_product = 0
+    g = SimpleWeightedGraph(partition.num_dists)
+
     for key in keys(partition.cross_district_edges)
         if length(intersect(key, changed_dists)) > 0
             continue
@@ -19,7 +20,7 @@ function get_log_linking_edges(
         for e in partition.cross_district_edges[key]
             pair_sum += weight(e)
         end
-        log_linking_edge_product += log(pair_sum)
+        add_edge!(g, key[1], key[2], pair_sum)
     end
 
     for key in keys(new_cross_d_edg)
@@ -27,19 +28,19 @@ function get_log_linking_edges(
         for e in new_cross_d_edg[key]
             pair_sum += weight(e)
         end
-        log_linking_edge_product += log(pair_sum)
+        add_edge!(g, key[1], key[2], pair_sum)
     end
-    return log_linking_edge_product
+    return log_nspanning(g)
 end
 # in above, could past a dictionary and set of keys
 # update would be new_cross_d_edg and keys(new_cross_d_edg)
 #!update would be partition.cross_district_edges and key subset or whole
 
-function get_log_linking_edges(
+function get_log_district_trees(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
         =collect(1:partition.num_dists);
     update::Union{Update{T}, Nothing}=nothing,
 ) where T <: Int
-    return get_log_linking_edges(partition, update)
+    return get_log_district_trees(partition, update)
 end

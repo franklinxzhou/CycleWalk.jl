@@ -80,6 +80,8 @@ export AbstractGraph,
     get_degree_distributions,
     get_neighbor_lists,
     get_diameters,
+    get_log_linking_edges,
+    get_log_district_trees,
     # get_split_unit_by_node_count,
     # build_split_unit_by_node_energy,
     # build_split_unit_by_node_count,
@@ -145,6 +147,8 @@ include("./measure/energy/log_forest_count.jl")
 include("./measure/energy/polsby_popper.jl")
 include("./measure/energy/split_unit_count_by_node.jl")
 include("./measure/energy/performant_vra_dists.jl")
+include("./measure/energy/log_linking_edges.jl")
+include("./measure/energy/log_district_trees.jl")
 # include("./measure/energy/mcd_ousted_population.jl")
 # include("./measure/energy/vap_frac.jl")
 
