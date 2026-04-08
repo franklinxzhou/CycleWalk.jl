@@ -1,6 +1,8 @@
 """"""
 function get_log_linking_edges(
     partition::LinkCutPartition,
+    districts::Union{Tuple{Vararg{T}}, Vector{T}}
+        =collect(1:partition.num_dists);
     update::Union{Update{T}, Nothing}=nothing,
 )::Float64 where T <: Int
     changed_dists = ()
@@ -35,11 +37,3 @@ end
 # update would be new_cross_d_edg and keys(new_cross_d_edg)
 #!update would be partition.cross_district_edges and key subset or whole
 
-function get_log_linking_edges(
-    partition::LinkCutPartition,
-    districts::Union{Tuple{Vararg{T}}, Vector{T}}
-        =collect(1:partition.num_dists);
-    update::Union{Update{T}, Nothing}=nothing,
-) where T <: Int
-    return get_log_linking_edges(partition, update)
-end
