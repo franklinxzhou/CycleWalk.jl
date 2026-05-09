@@ -70,3 +70,52 @@ end
         @test filesize(output_path) > 0
     end
 end
+
+@testset "push_writer! for log spanning trees, forests, and isoperimetric scores" begin
+    rng = PCG.PCGStateOneseq(UInt64, 44444)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    measure = Measure()
+    push_energy!(measure, get_log_spanning_forests, 1.0)
+    proposal = build_lifted_tree_cycle_walk(constraints)
+
+    mktempdir() do tmpdir
+        output_path = joinpath(tmpdir, "test_writer_observables.jsonl.gz")
+        writer = Writer(measure, constraints, partition, output_path)
+
+        push_writer!(writer, get_log_spanning_trees)
+        push_writer!(writer, get_log_spanning_forests)
+        push_writer!(writer, get_isoperimetric_scores)
+
+        @test length(writer.map_output_data) == 3
+        @test haskey(writer.map_output_data, string(get_log_spanning_trees))
+        @test haskey(writer.map_output_data, string(get_log_spanning_forests))
+        @test haskey(writer.map_output_data, string(get_isoperimetric_scores))
+
+        run_metropolis_hastings!(partition, proposal, measure, 50, rng;
+                                 writer=writer, output_freq=10)
+
+        trees  = writer.map_param[string(get_log_spanning_trees)]
+        forest = writer.map_param[string(get_log_spanning_forests)]
+        scores = writer.map_param[string(get_isoperimetric_scores)]
+
+        @test trees isa Vector{Float64}
+        @test length(trees) == partition.num_dists
+        @test all(isfinite, trees)
+
+        @test forest isa Float64
+        @test isfinite(forest)
+        @test forest ≈ sum(trees)
+
+        @test scores isa Vector{Float64}
+        @test length(scores) == partition.num_dists
+        @test all(isfinite, scores)
+
+        close_writer(writer)
+        @test isfile(output_path)
+        @test filesize(output_path) > 0
+    end
+end
