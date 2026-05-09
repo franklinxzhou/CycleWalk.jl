@@ -71,6 +71,102 @@ end
     end
 end
 
+@testset "get_isoperimetric_score (scalar)" begin
+    rng = PCG.PCGStateOneseq(UInt64, 55555)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    score  = get_isoperimetric_score(partition)
+    scores = get_isoperimetric_scores(partition)
+    @test score isa Float64
+    @test isfinite(score)
+    @test score > 0
+    @test score ≈ sum(scores)
+end
+
+@testset "get_log_linking_edges" begin
+    rng = PCG.PCGStateOneseq(UInt64, 66666)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    result = get_log_linking_edges(partition)
+    @test result isa Float64
+    @test isfinite(result)
+    @test result >= 0
+end
+
+@testset "get_log_district_trees" begin
+    rng = PCG.PCGStateOneseq(UInt64, 77777)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    result = get_log_district_trees(partition)
+    @test result isa Float64
+    @test isfinite(result)
+end
+
+@testset "get_cut_edge_sum" begin
+    rng = PCG.PCGStateOneseq(UInt64, 88888)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    result = get_cut_edge_sum(partition)
+    # 4 districts in a 4×4 grid require at least 3 boundary edges
+    @test result >= 3
+end
+
+@testset "push_energy! with log linking edges and district trees" begin
+    rng = PCG.PCGStateOneseq(UInt64, 12345)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    measure = Measure()
+    push_energy!(measure, get_log_linking_edges, 1.0)
+    push_energy!(measure, get_log_district_trees, 1.0)
+    proposal = build_lifted_tree_cycle_walk(constraints)
+    run_metropolis_hastings!(partition, proposal, measure, 200, rng)
+    @test partition.num_dists == 4
+end
+
+@testset "VRA energy functions with mock elections" begin
+    rng = PCG.PCGStateOneseq(UInt64, 13579)
+    constraints = initialize_constraints()
+    add_constraint!(constraints, PopulationConstraint(4, 4))
+    partition = LinkCutPartition(
+        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
+    )
+    # Use existing node columns as stand-in election data.
+    # Each election is a 2-tuple of stages; each stage is a tuple of candidate columns.
+    # The VRA candidate is always the first column in each stage.
+    elections = [(("pop", "border_length"), ("pop", "border_length"))]
+
+    score_fn = build_performant_vra_score(
+        small_square_base_graph, elections; target_districts=1
+    )
+    score = score_fn(partition)
+    @test score isa Float64
+    @test isfinite(score)
+
+    report_fn = build_performant_vra_report(
+        small_square_base_graph, elections; target_districts=1
+    )
+    @test report_fn(partition) !== nothing
+
+    n_target = get_target_vra_districts(small_square_base_graph, 4, "pop", "border_length")
+    @test n_target isa Int
+    @test 0 <= n_target <= 4
+end
+
 @testset "push_writer! for log spanning trees, forests, and isoperimetric scores" begin
     rng = PCG.PCGStateOneseq(UInt64, 44444)
     constraints = initialize_constraints()
