@@ -319,7 +319,6 @@ function satisfies_constraint(
             districts_in_node[node_id] += 1
         end
     end
-    # @show districts_in_node
 
     pop_col = coarse_graph.pop_col
     node_attributes = coarse_graph.node_attributes
@@ -349,21 +348,19 @@ function satisfies_constraint(
     end
 
     excess = constraint.excess_splitting
-    node_pop = 0
+    epsilon = constraint.epsilon # Pull epsilon from the updated struct
+
     for node_id = 1:coarse_graph.num_nodes
         node_pop = node_attributes[node_id][pop_col]
         dists = districts_in_node[node_id]
-        if node_pop < ideal_pop
-            if dists > excess + 2
-                # node = graph.id_to_partitions[1][node_id]
-                # @show "here1", node, node_pop, ideal_pop, dists, excess+2
+        
+        if node_pop > ideal_pop + epsilon
+            needed_dists = ceil(node_pop/ideal_pop)
+            if dists > needed_dists + excess
                 return false
             end
         else
-            needed_dists = ceil(node_pop/ideal_pop)
-            if dists > needed_dists + excess
-                # node = graph.id_to_partitions[1][node_id]
-                # @show "here2", node, node_pop, ideal_pop, dists, excess, needed_dists
+            if dists > 2 + excess
                 return false
             end
         end
