@@ -36,31 +36,39 @@ end
 
 """"""
 function PackNodeConstraint(
-    graph::MultiLevelGraph,
+    graph::BasicGraph,
+    constrained_col::String,
     unpack::Int=0;
     num_dists::Int=0,
     ideal_pop::Real=0
 )::PackNodeConstraint
+
     if ideal_pop == 0 && num_dists == 0
-        throw(
-            ArgumentError("Need to specify either ideal_pop or num_dists",)
-        )
+        throw(ArgumentError("Need to specify either ideal_pop or num_dists"))
     elseif ideal_pop == 0
-        ideal_pop = graph.graphs_by_level[1].total_pop / num_dists
+        ideal_pop = graph.total_pop / num_dists
     end
+
+    pop_col = graph.pop_col
+    region_pop = Dict{String, Float64}()
+
+    # Aggregate precinct/node population by county or other constrained region.
+    for node_id in 1:graph.num_nodes
+        attr = graph.node_attributes[node_id]
+        region = string(attr[constrained_col])
+        pop = Float64(attr[pop_col])
+        region_pop[region] = get(region_pop, region, 0.0) + pop
+    end
+
     packed_nodes = Dict{Tuple{Vararg{String}}, Int}()
-    pop_col = graph.graphs_by_level[1].pop_col
-    for level = 1:graph.num_levels
-        g = graph.graphs_by_level[level]
-        for node_id = 1:g.num_nodes
-            node_pop = g.node_attributes[node_id][pop_col]
-            packed_districts = floor(node_pop/ideal_pop) - unpack
-            if packed_districts > 0
-                node = graph.id_to_partitions[level][node_id]
-                packed_nodes[node] = packed_districts
-            end
+
+    for (region, pop) in region_pop
+        packed_districts = floor(Int, pop / ideal_pop) - unpack
+        if packed_districts > 0
+            packed_nodes[(region,)] = packed_districts
         end
     end
+
     return PackNodeConstraint(packed_nodes, ideal_pop)
 end
 
@@ -76,12 +84,13 @@ function AllowedExcessDistsInCoarseNodes(
     graph::MultiLevelGraph,
     num_dists::Int,
     allowable_excess::Int=0;
-    ideal_pop::Real = 0
+    ideal_pop::Real = 0,
+    epsilon::Real = 0.0
 )::AllowedExcessDistsInCoarseNodes
     if ideal_pop == 0
         ideal_pop = graph.graphs_by_level[1].total_pop / num_dists
     end
-    return AllowedExcessDistsInCoarseNodes(allowable_excess, ideal_pop)
+    return AllowedExcessDistsInCoarseNodes(allowable_excess, ideal_pop, epsilon)
 end
 
 """"""

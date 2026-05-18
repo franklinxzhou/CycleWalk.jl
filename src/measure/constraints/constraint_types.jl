@@ -32,6 +32,7 @@ end
 struct AllowedExcessDistsInCoarseNodes <: AbstractConstraint
     excess_splitting::Int
     ideal_pop::Real
+    epsilon::Real
 end
 
 struct MaxHammingDistance <: AbstractConstraint
