@@ -36,8 +36,7 @@ end
 
 """"""
 function PackNodeConstraint(
-    graph::BasicGraph,
-    constrained_col::String,
+    graph::MultiLevelGraph,
     unpack::Int=0;
     num_dists::Int=0,
     ideal_pop::Real=0
@@ -46,26 +45,23 @@ function PackNodeConstraint(
     if ideal_pop == 0 && num_dists == 0
         throw(ArgumentError("Need to specify either ideal_pop or num_dists"))
     elseif ideal_pop == 0
-        ideal_pop = graph.total_pop / num_dists
-    end
-
-    pop_col = graph.pop_col
-    region_pop = Dict{String, Float64}()
-
-    # Aggregate precinct/node population by county or other constrained region.
-    for node_id in 1:graph.num_nodes
-        attr = graph.node_attributes[node_id]
-        region = string(attr[constrained_col])
-        pop = Float64(attr[pop_col])
-        region_pop[region] = get(region_pop, region, 0.0) + pop
+        ideal_pop = graph.graphs_by_level[1].total_pop / num_dists
     end
 
     packed_nodes = Dict{Tuple{Vararg{String}}, Int}()
+    
+    # Level 1 of the MultiLevelGraph is already aggregated by County
+    coarse_graph = graph.graphs_by_level[1]
+    pop_col = coarse_graph.pop_col
 
-    for (region, pop) in region_pop
-        packed_districts = floor(Int, pop / ideal_pop) - unpack
+    for node_id in 1:coarse_graph.num_nodes
+        node_pop = coarse_graph.node_attributes[node_id][pop_col]
+        packed_districts = floor(Int, node_pop / ideal_pop) - unpack
+        
         if packed_districts > 0
-            packed_nodes[(region,)] = packed_districts
+            # Fetch the exact tuple signature CycleWalk uses (e.g., ("Cuyahoga",))
+            node_tuple = graph.id_to_partitions[1][node_id]
+            packed_nodes[node_tuple] = packed_districts
         end
     end
 
