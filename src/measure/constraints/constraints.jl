@@ -94,6 +94,20 @@ function AllowedExcessDistsInCoarseNodes(
 end
 
 """"""
+function AllowedExcessDistsInMCDNodes(
+    graph::MultiLevelGraph,
+    num_dists::Int,
+    allowable_excess::Int=0;
+    ideal_pop::Real = 0,
+    epsilon::Real = 0.0
+)::AllowedExcessDistsInMCDNodes
+    if ideal_pop == 0
+        ideal_pop = graph.graphs_by_level[1].total_pop / num_dists
+    end
+    return AllowedExcessDistsInMCDNodes(allowable_excess, ideal_pop, epsilon)
+end
+
+""""""
 function MaxHammingDistance(
     graph::MultiLevelGraph,
     partition::MultiLevelPartition, #initial partition
@@ -370,6 +384,66 @@ function satisfies_constraint(
 end
 
 """"""
+function traverse_and_mark!(districts_in_node, graph, node_set, current_level, target_level)
+    for (node_tuple, sub_nodes) in node_set
+        if current_level == target_level
+            node_id = graph.partition_to_ids[target_level][node_tuple]
+            districts_in_node[node_id] += 1
+        elseif sub_nodes === nothing
+            # The county is fully contained. We must implicitly add 1 to all its MCDs.
+            for node_id = 1:graph.graphs_by_level[target_level].num_nodes
+                target_tuple = graph.id_to_partitions[target_level][node_id]
+                if target_tuple[1:current_level] == node_tuple
+                    districts_in_node[node_id] += 1
+                end
+            end
+        else
+            traverse_and_mark!(districts_in_node, graph, sub_nodes, current_level + 1, target_level)
+        end
+    end
+end
+
+""""""
+function satisfies_constraint(
+    constraint::AllowedExcessDistsInMCDNodes,
+    graph::MultiLevelGraph,
+    district_to_nodes::AbstractArray{Dict{Tuple{Vararg{String}},Any}, 1},
+    num_dists::Int
+)
+    target_level = 2 # MCDs will be level 2 in our new graph hierarchy
+    target_graph = graph.graphs_by_level[target_level]
+    districts_in_node = zeros(Int, target_graph.num_nodes)
+    
+    # Traverse the proposed district sets to mark the MCDs
+    for node_set in district_to_nodes
+        traverse_and_mark!(districts_in_node, graph, node_set, 1, target_level)
+    end
+
+    pop_col = target_graph.pop_col
+    node_attributes = target_graph.node_attributes
+    ideal_pop = constraint.ideal_pop
+    excess = constraint.excess_splitting
+    epsilon = constraint.epsilon
+
+    for node_id = 1:target_graph.num_nodes
+        node_pop = node_attributes[node_id][pop_col]
+        dists = districts_in_node[node_id]
+        
+        if node_pop > ideal_pop + epsilon
+            needed_dists = ceil(node_pop/ideal_pop)
+            if dists > needed_dists + excess
+                return false
+            end
+        else
+            if dists > 2 + excess
+                return false
+            end
+        end
+    end
+    return true
+end
+
+""""""
 function satisfies_constraint(
     constraint::MaxHammingDistance,
     graph::MultiLevelGraph,
@@ -471,6 +545,13 @@ function satisfies_constraints(
         satisfies_constraints = satisfies_constraints && s
     end
 
+    if satisfies_constraints && haskey(constraints, AllowedExcessDistsInMCDNodes)
+        constraint = constraints[AllowedExcessDistsInMCDNodes]
+        s = satisfies_constraint(constraint, graph, district_to_nodes,
+                                 num_dists)
+        satisfies_constraints = satisfies_constraints && s
+    end
+
     if satisfies_constraints &&
        haskey(constraints, MaxHammingDistance)
         constraint = constraints[MaxHammingDistance]
@@ -521,6 +602,14 @@ function satisfies_constraints(
 
     if haskey(constraints, AllowedExcessDistsInCoarseNodes)
         constraint = constraints[AllowedExcessDistsInCoarseNodes]
+        if !satisfies_constraint(constraint, graph, district_to_nodes,
+                                 num_dists)
+            return false
+        end
+    end
+
+    if haskey(constraints, AllowedExcessDistsInMCDNodes)
+        constraint = constraints[AllowedExcessDistsInMCDNodes]
         if !satisfies_constraint(constraint, graph, district_to_nodes,
                                  num_dists)
             return false

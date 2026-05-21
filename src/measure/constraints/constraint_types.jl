@@ -35,6 +35,12 @@ struct AllowedExcessDistsInCoarseNodes <: AbstractConstraint
     epsilon::Real
 end
 
+struct AllowedExcessDistsInMCDNodes <: AbstractConstraint
+    excess_splitting::Int
+    ideal_pop::Real
+    epsilon::Real 
+end
+
 struct MaxHammingDistance <: AbstractConstraint
     partition::AbstractPartition # initial partition
     max_distance::Real # maximum fraction of deviation in a single distrct
