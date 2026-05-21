@@ -39,7 +39,8 @@ function PackNodeConstraint(
     graph::MultiLevelGraph,
     unpack::Int=0;
     num_dists::Int=0,
-    ideal_pop::Real=0
+    ideal_pop::Real=0,
+    epsilon::Real=0.0
 )::PackNodeConstraint
 
     if ideal_pop == 0 && num_dists == 0
@@ -56,7 +57,8 @@ function PackNodeConstraint(
 
     for node_id in 1:coarse_graph.num_nodes
         node_pop = coarse_graph.node_attributes[node_id][pop_col]
-        packed_districts = floor(Int, node_pop / ideal_pop) - unpack
+        base_packed_districts = floor(Int, max(0, node_pop - epsilon) / ideal_pop)
+        packed_districts = base_packed_districts - unpack
         
         if packed_districts > 0
             # Fetch the exact tuple signature CycleWalk uses (e.g., ("Cuyahoga",))
@@ -65,7 +67,7 @@ function PackNodeConstraint(
         end
     end
 
-    return PackNodeConstraint(packed_nodes, ideal_pop)
+    return PackNodeConstraint(packed_nodes, ideal_pop, epsilon)
 end
 
 """"""
@@ -228,7 +230,11 @@ function satisfies_constraint(
             n_atr = graph.graphs_by_level[level].node_attributes
             total_pop = n_atr[node_id][pop_col]
             remaining_pop = total_pop-claimed_pop
-            packed_dists_in_node += floor(remaining_pop/constraint.ideal_pop)
+            additional_possible_packed_dists = floor(
+                Int,
+                max(0, remaining_pop - constraint.epsilon) / constraint.ideal_pop,
+            )
+            packed_dists_in_node += additional_possible_packed_dists
             if packed_dists_in_node < target_packed_dists
                 return false
             end

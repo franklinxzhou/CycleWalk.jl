@@ -11,7 +11,15 @@ end
 struct PackNodeConstraint <: AbstractConstraint
     nodes::Union{Nothing, Dict{Tuple{Vararg{String}}, Int}}
     ideal_pop::Real
+    epsilon::Real
 end
+
+# Backward-compatible outer constructor: old calls PackNodeConstraint(nodes, ideal_pop)
+# behave exactly as before.
+PackNodeConstraint(
+    nodes::Union{Nothing, Dict{Tuple{Vararg{String}}, Int}},
+    ideal_pop::Real,
+)::PackNodeConstraint = PackNodeConstraint(nodes, ideal_pop, 0.0)
 
 struct ConstrainDiscontinuousTraversals <: AbstractConstraint
     max_line_segments::Int
@@ -35,11 +43,21 @@ struct AllowedExcessDistsInCoarseNodes <: AbstractConstraint
     epsilon::Real
 end
 
+AllowedExcessDistsInCoarseNodes(
+    excess_splitting::Int,
+    ideal_pop::Real
+)::AllowedExcessDistsInCoarseNodes = AllowedExcessDistsInCoarseNodes(excess_splitting, ideal_pop, 0.0)
+
 struct AllowedExcessDistsInMCDNodes <: AbstractConstraint
     excess_splitting::Int
     ideal_pop::Real
     epsilon::Real 
 end
+
+AllowedExcessDistsInMCDNodes(
+    excess_splitting::Int,
+    ideal_pop::Real
+)::AllowedExcessDistsInMCDNodes = AllowedExcessDistsInMCDNodes(excess_splitting, ideal_pop, 0.0)
 
 struct MaxHammingDistance <: AbstractConstraint
     partition::AbstractPartition # initial partition
