@@ -28,9 +28,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 11111)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     proposal = build_one_tree_cycle_walk(constraints)
     run_metropolis_hastings!(partition, proposal, Measure(), 200, rng)
     @test partition.num_dists == 4
@@ -40,9 +38,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 22222)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     proposal = build_two_tree_cycle_walk(constraints)
     run_metropolis_hastings!(partition, proposal, Measure(), 200, rng)
     @test partition.num_dists == 4
@@ -52,9 +48,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 33333)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     measure = Measure()
     push_energy!(measure, get_log_spanning_forests, 1.0)
     proposal = build_lifted_tree_cycle_walk(constraints)
@@ -75,9 +69,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 55555)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     score  = get_isoperimetric_score(partition)
     scores = get_isoperimetric_scores(partition)
     @test score isa Float64
@@ -90,9 +82,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 66666)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     result = get_log_linking_edges(partition)
     @test result isa Float64
     @test isfinite(result)
@@ -103,9 +93,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 77777)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     result = get_log_district_trees(partition)
     @test result isa Float64
     @test isfinite(result)
@@ -115,9 +103,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 88888)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     result = get_cut_edge_sum(partition)
     # 4 districts in a 4×4 grid require at least 3 boundary edges
     @test result >= 3
@@ -127,9 +113,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 12345)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     measure = Measure()
     push_energy!(measure, get_log_linking_edges, 1.0)
     push_energy!(measure, get_log_district_trees, 1.0)
@@ -142,9 +126,7 @@ end
     rng = PCG.PCGStateOneseq(UInt64, 44444)
     constraints = initialize_constraints()
     add_constraint!(constraints, PopulationConstraint(4, 4))
-    partition = LinkCutPartition(
-        MultiLevelPartition(small_square_graph, constraints, 4; rng=rng), rng
-    )
+    partition = LinkCutPartition(small_square_graph, constraints, 4; rng=rng)
     measure = Measure()
     push_energy!(measure, get_log_spanning_forests, 1.0)
     proposal = build_lifted_tree_cycle_walk(constraints)

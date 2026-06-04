@@ -64,16 +64,19 @@ function LinkCutPartition(
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
     verbose::Bool=false
 ) where U <: Int
-    mfr_constraints = interpret_constraints(constraints)
-    partition = MultiLevelPartition(graph, mfr_constraints, num_dists; 
+    mfr_constraints, levels = interpret_constraints(constraints, graph)
+    ml_graph = multi_level_graph(graph.graphs_by_level[end], levels)
+    partition = MultiLevelPartition(ml_graph, mfr_constraints, num_dists; 
                                     rng=rng);
+    node_to_dist = flatten_assignment(partition)
+    partition = MultiLevelPartition(graph, node_to_dist)
+
     if verbose
         @show collect(keys(partition.district_to_nodes[1]))[1:min(10,end)]
     end
     lct_partition = LinkCutPartition(partition, rng)
-    @show "todo: check lct partition satisfies constraints"
-    # @assert satisfies_constraints_population(partition, constraints)
-    # @assert satisfies_constraints(partition, constraints)
+    @assert satisfies_constraints(lct_partition, constraints; 
+                                  check_population=true)
     return lct_partition;
 end
 

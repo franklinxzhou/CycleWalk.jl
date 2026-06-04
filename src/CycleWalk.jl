@@ -14,7 +14,8 @@ using Dates
 using AtlasIO
 import MetropolizedForestRecom:
     initialize_constraints as mfr_initialize_constraints,
-    add_constraint! as mfr_add_constraint!
+    add_constraint! as mfr_add_constraint!,
+    get_district as mfr_get_district
 using MetropolizedForestRecom:
     AbstractGraph,
     AbstractPartition,
@@ -45,6 +46,7 @@ export AbstractGraph,
     AbstractPartition,
     edge_weight,
     build_graph,
+    multi_level_graph,
 
     # proposals
     build_one_tree_cycle_walk,
@@ -154,14 +156,16 @@ include("./proposals/update.jl")
 include("./diagnostics/proposal_diagnostics_types.jl")
 
 include("./measure/constraints/constraints.jl")
+include("./measure/constraints/pack_region/pack_region_type.jl")
 include("./measure/constraints/mfr_constraints_interpreter.jl")
 
 include("./partition/link_cut_partition.jl")
+include("./partition/mfr_partition_ext.jl")
 
 include("./measure/constraints/check_constraints.jl")
 
 include("./measure/data/regional_split_data.jl")
-include("./measure/constraints/pack_region.jl")
+include("./measure/constraints/pack_region/pack_region.jl")
 include("./measure/constraints/balance.jl")
 
 include("./measure/measure.jl")

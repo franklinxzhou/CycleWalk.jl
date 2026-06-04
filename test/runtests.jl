@@ -62,6 +62,7 @@ tests = [
     "small_square_p88_unweighted",
     "small_square_p88_weighted",
     "small_square_p88_polsby_popper",
+    "pack_region_nc",
     ]
 @testset verbose = true "CycleWalk Tests" begin
     for t in tests

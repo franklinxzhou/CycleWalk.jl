@@ -10,14 +10,12 @@ function satisfies_constraints(
 	if check_population && !satisfies_constraint(partition, 
 		                                    constraints.population_constraint,
 		                                    districts; update=update)
-		@show "here1"
 		return false
 	end
 	
 	for constraint in constraints.constraints
 		if !satisfies_constraint(partition, constraint, districts;
                                  update=update)
-			@show "here2"
 			return false
 		end
 	end

@@ -46,9 +46,9 @@ end
 
 function satisfies_constraint(
     partition::LinkCutPartition,
-    population_constraint::PopulationConstraint;
+    population_constraint::PopulationConstraint,
     districts::Union{Tuple{Vararg{T}}, Vector{T}} 
-        = collect(1:partition.num_dists),
+        = collect(1:partition.num_dists);
     update::Union{Update, Nothing}=nothing
 )::Bool where T<:Int
     if !haskey(partition.energy_data, BalanceData)
