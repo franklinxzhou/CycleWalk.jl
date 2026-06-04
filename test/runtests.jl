@@ -17,7 +17,7 @@ end
 
 function get_observed_cut_edges(
     graph::MultiLevelGraph, 
-    constraints::Dict,
+    constraints::Constraints,
     num_districts::Int, 
     measure::Measure=Measure();
     cycle_steps::Int=50_000,
@@ -25,9 +25,7 @@ function get_observed_cut_edges(
     cut_edge_field = "connections"
 )::Dict
     rng = PCG.PCGStateOneseq(UInt64, 1241909)
-    initial_partition = MultiLevelPartition(graph, constraints, num_districts; 
-                                            rng=rng);
-    partition = LinkCutPartition(initial_partition, rng);
+    partition = LinkCutPartition(graph, constraints, num_districts; rng=rng)
 
     cycle_walk = build_lifted_tree_cycle_walk(constraints)
     internal_walk = build_internal_forest_walk(constraints)

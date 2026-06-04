@@ -1,7 +1,7 @@
 name = "CycleWalk"
 uuid = "ac9cec89-1413-42d8-a7d6-c246d938c565"
+version = "0.1.10"
 authors = ["Jonathan Mattingly <jonathan.mattingly@duke.edu>", "Gregory Herschlag <Gregory.Herschlag@duke.edu>"]
-version = "0.1.10" 
 
 [deps]
 AtlasIO = "d44f5655-1c95-40b4-8e53-9bdb5084f5d6"
@@ -12,6 +12,7 @@ Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 Hungarian = "e91730f6-4275-51fb-a7a0-7064cfbd3b39"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MetropolizedForestRecom = "f1e60ccc-08a2-41db-b5d4-22e81ab96e15"
 RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 SimpleWeightedGraphs = "47aef6b3-ad0c-573a-a1e2-d07658019622"
 
@@ -24,6 +25,7 @@ Graphs = "1"
 Hungarian = "0.7"
 JSON = "1"
 LinearAlgebra = "1"
+MetropolizedForestRecom = "0.1.4"
 RandomNumbers = "1"
 SimpleWeightedGraphs = "1"
 julia = "1"

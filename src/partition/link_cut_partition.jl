@@ -59,17 +59,22 @@ end
 """"""
 function LinkCutPartition(
     graph::MultiLevelGraph, 
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint},
+    constraints::Constraints,
     num_dists::U;
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
     verbose::Bool=false
 ) where U <: Int
-    partition = MultiLevelPartition(graph, constraints, num_dists; 
-                                        rng=rng);
+    mfr_constraints = interpret_constraints(constraints)
+    partition = MultiLevelPartition(graph, mfr_constraints, num_dists; 
+                                    rng=rng);
     if verbose
         @show collect(keys(partition.district_to_nodes[1]))[1:min(10,end)]
     end
-    return LinkCutPartition(partition, rng);
+    lct_partition = LinkCutPartition(partition, rng)
+    @show "todo: check lct partition satisfies constraints"
+    # @assert satisfies_constraints_population(partition, constraints)
+    # @assert satisfies_constraints(partition, constraints)
+    return lct_partition;
 end
 
 """"""
@@ -87,19 +92,6 @@ function get_district_roots(lct::LinkCutTree)
 end
 
 """"""
-function get_district(
-    ind::Int64,
-    target_districts::Vector{Int64},
-    node_to_dist::Vector{Int64},
-    node_to_dist_update::Union{Nothing, Vector{Int64}}=nothing
-)
-    if node_to_dist[ind] ∈ target_districts && node_to_dist_update !== nothing
-        return node_to_dist_update[ind]
-    end
-    return node_to_dist[ind]
-end
-
-""""""
 function find_cross_district_edges!(
     lcp::LinkCutPartition,
     districts::Vector{Int} = collect(1:lcp.num_dists),
@@ -107,11 +99,10 @@ function find_cross_district_edges!(
     = lcp.cross_district_edges;
     update = false
 )
-    node_to_dist = lcp.node_to_dist
     if update
-        node_to_dist_update = lcp.node_to_dist_update
+        node_to_dist = lcp.node_to_dist_update
     else
-        node_to_dist_update = nothing
+        node_to_dist = lcp.node_to_dist
     end
     graph = lcp.graph
     simple_graph = graph.simple_graph
@@ -126,9 +117,7 @@ function find_cross_district_edges!(
                 if visited_nodes[n] continue end
                 if get_weight(simple_graph, v, n) == 0 continue end
                 # rn = find_root!(lcp.lct.nodes[n]).vertex
-                # dj = node_to_dist[n]
-                dj = get_district(n, districts, node_to_dist, 
-                                  node_to_dist_update)
+                dj = node_to_dist[n]
                 # if (rn == r) != (dj == di)
                 #     @show "problem here"
                 #     @show n, rn, r, di, dj

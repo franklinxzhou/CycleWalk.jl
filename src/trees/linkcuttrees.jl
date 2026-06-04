@@ -213,19 +213,31 @@ function nv_cc(node::Node, start=true)
     return count
 end
 
-function cc(node::Node, start=true, vec::Vector{Int}=Vector{Int}(undef,0)) 
+function cc(
+    node::Node, 
+    start=true, 
+    vec::Vector{Int}=Vector{Int}(undef,0);
+    ind::Int64=1
+)::Vector 
+    
+    ind = 1
     if start
         expose!(node)
     end
-    push!(vec, node.vertex)
+    if ind > length(vec)
+        push!(vec, node.vertex)
+    else
+        vec[ind] = node.vertex
+        ind += 1
+    end
     
     for ii = 1:2
         if node.children[ii] != nothing
-            cc(node.children[ii], false, vec)
+            cc(node.children[ii], false, vec; ind=ind)
         end
     end
     for n in node.pathChildren
-        cc(n, false, vec)
+        cc(n, false, vec; ind=ind)
     end
     return vec
 end

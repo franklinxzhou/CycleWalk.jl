@@ -91,7 +91,7 @@ end
 
 """"""
 function build_internal_forest_walk(
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint}
+    constraints::Constraints
 )
     f(p, r; diagnostics=nothing) = internal_forest_walk!(p, r;
                                                         diagnostics=diagnostics)

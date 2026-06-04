@@ -99,12 +99,12 @@ function find_cuttable_edge_pairs(
     cycle_weights::Vector{U}, 
     initial_cut_index::Int,
     partition::LinkCutPartition,
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint}
+    constraints::Constraints
 ) where U <: Real
     path_length = length(cycle_weights)
     totpop_uv = sum(cycle_weights)
-    min_pop = constraints[PopulationConstraint].min_pop
-    max_pop = constraints[PopulationConstraint].max_pop
+    min_pop = constraints.population_constraint.min_pop
+    max_pop = constraints.population_constraint.max_pop
     possible_pairs = Set()
 
     ### find valid cut with smallest index when paired with u1,v1
@@ -334,7 +334,7 @@ end
 
 function lifted_tree_cycle_walk!(
     partition::LinkCutPartition,
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint},
+    constraints::Constraints,
     rng::AbstractRNG;
     diagnostics::Union{Nothing,ProposalDiagnostics}=nothing
 )
@@ -413,7 +413,7 @@ end
 
 """"""
 function build_lifted_tree_cycle_walk(
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint}
+    constraints::Constraints
 )
     f(p::LinkCutPartition, 
       r::AbstractRNG; 

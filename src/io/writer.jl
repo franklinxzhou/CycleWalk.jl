@@ -13,7 +13,7 @@ end
 
 function Writer(
     measure::Measure,
-    constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint},
+    constraints::Constraints,
     partition::LinkCutPartition,
     output_file_path::String;
     output_districting=true,
@@ -30,11 +30,9 @@ function Writer(
     atlasParam=AtlasParam("energies"=>energies, "energy weights"=>weights,
                           "districts"=>partition.num_dists)
 
-    if haskey(constraints, PopulationConstraint)
-        min_pop = constraints[PopulationConstraint].min_pop
-        max_pop = constraints[PopulationConstraint].max_pop
-        atlasParam["population bounds"] = [min_pop, max_pop]
-    end
+    min_pop = constraints.population_constraint.min_pop
+    max_pop = constraints.population_constraint.max_pop
+    atlasParam["population bounds"] = [min_pop, max_pop]
 
     f = @__FILE__
 

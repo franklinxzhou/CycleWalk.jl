@@ -16,7 +16,7 @@ function kruskal_rmst(
     rng::AbstractRNG;
     minimize=false
 )
-    connected_vs = IntDisjointSets(nv(g))
+    connected_vs = IntDisjointSet(nv(g))
 
     mst = Vector{edgetype(g)}()
     sizehint!(mst, nv(g) - 1)

@@ -2,7 +2,7 @@ module CycleWalk
 using JSON
 using SimpleWeightedGraphs
 using DataStructures:
-    IntDisjointSets,
+    IntDisjointSet,
     in_same_set,
     SortedDict
 using Graphs
@@ -12,6 +12,28 @@ using Hungarian
 import Combinatorics
 using Dates
 using AtlasIO
+import MetropolizedForestRecom:
+    initialize_constraints as mfr_initialize_constraints,
+    add_constraint! as mfr_add_constraint!
+using MetropolizedForestRecom:
+    AbstractGraph,
+    AbstractPartition,
+    BaseGraph,
+    Graph,
+    MultiLevelGraph,
+    MultiLevelSubGraph,
+    MultiLevelPartition,
+    Partition,
+    AbstractConstraint,
+    PopulationConstraint,
+    PackNodeConstraint,
+    # WANT ConstrainDiscontinuousTraversals,
+    # WANT -- but rename -- MaxCoarseNodeSplits,
+    # WANT -- but rename -- MaxSharedCoarseNodes,
+    # WANT -- but rename -- AllowedExcessDistsInCoarseNodes,
+    # initialize_constraints,
+    # add_constraint!,
+    cluster_base_graph
 
 export AbstractGraph,
     BaseGraph,
@@ -20,6 +42,7 @@ export AbstractGraph,
     Graph,
     MultiLevelGraph,
     MultiLevelPartition,
+    AbstractPartition,
     edge_weight,
     build_graph,
 
@@ -32,17 +55,18 @@ export AbstractGraph,
 
     # constraints
     initialize_constraints,
+    Constraints,
     add_constraint!,
+    push_constraint!,
     AbstractConstraint,
     PopulationConstraint,
-    ConstrainDiscontinuousTraversals,
-    PackNodeConstraint,
-    MaxCoarseNodeSplits,
-    MaxSharedCoarseNodes,
-    MaxSharedNodes,
-    AllowedExcessDistsInCoarseNodes,
-    MaxHammingDistance,
-    MultiScaleCuttableTree,
+    PackRegionConstraint,
+    # ConstrainDiscontinuousTraversals,
+    # MaxCoarseNodeSplits,
+    # MaxSharedCoarseNodes,
+    # MaxSharedNodes,
+    # AllowedExcessDistsInCoarseNodes,
+    # MaxHammingDistance,
     
     LinkCutPartition,
 
@@ -115,31 +139,24 @@ include("./auxilary/random_extensions.jl")
 include("./auxilary/SimpleWeightedGraphs_BugFixes.jl")
 include("./utilities/array_utils.jl")
 
-include("./graph/multi_level_graph.jl")
-include("./graph/subgraph.jl")
-include("./graph/node_set.jl")
-include("./graph/multi_level_subgraph.jl")
-
-#JCM Added. Loads in some simple neighbor list algorithms
+include("./graph/graph.jl")
 include("./trees/neighbor_list_tree.jl")
-
 include("./trees/tree.jl")
 include("./trees/splaytrees.jl")
 include("./trees/linkcuttrees.jl")
 include("./trees/russo_ust.jl")
 
 # type defs
-include("./measure/constraints/constraint_types.jl")
 include("./measure/energy/energy_types.jl")
 include("./proposals/update.jl")
 include("./diagnostics/proposal_diagnostics_types.jl")
 
-include("./partition/multi_level_partition.jl")
-include("./partition/balance_multi_level_graph.jl")
-include("./partition/construct_multi_level_partition.jl")
+include("./measure/constraints/constraints.jl")
+
 include("./partition/link_cut_partition.jl")
 
-include("./measure/constraints/constraints.jl")
+include("./measure/data/regional_split_data.jl")
+include("./measure/constraints/pack_region.jl")
 
 include("./measure/measure.jl")
 include("./measure/energy/defaults.jl")
