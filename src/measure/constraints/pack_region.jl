@@ -59,7 +59,7 @@ function satisfies_constraint(
         = collect(1:partition.num_dists);
     update::Union{Update, Nothing}=nothing
 )::Bool where T<:Int
-    region = pack_region_constraint.region
+    region = (pack_region_constraint.region,)
     if !haskey(partition.energy_data, (RegionalSplitData, region))
         data = RegionalSplitData(partition, pack_region_constraint.region)
         partition.energy_data[(RegionalSplitData, region)] = data
@@ -78,7 +78,7 @@ function satisfies_constraint(
     active_regions_to_dists = data.regions_to_dists
     active_dists_to_regions = data.dists_to_regions
     if update !== nothing
-        active_districts = Set(collect(update.changed_districts))
+        active_districts = collect(update.changed_districts)
         active_regions_to_dists = data.regions_to_dists_update
         active_dists_to_regions = data.dists_to_regions_update
     end
@@ -92,8 +92,8 @@ end
 function satisfies_constraint(
     pack_region_constraint::PackRegionConstraint,
     districts::Union{Tuple{Vararg{T}}, Vector{T}},
-    regions_to_dists::Dict{String, Vector{Int64}},
-    dists_to_regions::Dict{Int64, Vector{String}}
+    regions_to_dists::Dict{String, Set{Int64}},
+    dists_to_regions::Dict{Int64, Set{String}}
 )::Bool where T<:Int
     checked_regions = Set{String}()
 
@@ -111,11 +111,10 @@ function satisfies_constraint(
             end
 
             req_pack = pack_region_constraint.region_to_packed_dists[region]
-            region_districts = get(regions_to_dists, region, Int64[])
-
+       
             exclusive_count = 0
-            for di in region_districts
-                di_regions = Set(get(dists_to_regions, di, String[]))
+            for di in regions_to_dists[region]
+                di_regions = dists_to_regions[di]
                 if length(di_regions) == 1 && region in di_regions
                     exclusive_count += 1
                 end

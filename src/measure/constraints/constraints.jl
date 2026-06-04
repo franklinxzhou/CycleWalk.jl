@@ -3,6 +3,7 @@ mutable struct Constraints
 	constraints::Vector{AbstractConstraint}
 	descriptions::Vector{String}
 end
+# TODO: Add to atlas in writer
 
 """"""
 function Constraints(
@@ -35,8 +36,11 @@ function add_constraint!(
 	push!(constraints.constraints, constraint)
 	if desc == ""
 		desc = string(typeof(constraint))
-		if constraint.desc != ""
-			desc *= "_" * constraint.desc
+		if hasproperty(constraint, :desc)
+			desc_suffx = getproperty(constraint, :desc)
+			if desc_suffx isa AbstractString && desc_suffx != ""
+				desc *= "_" * desc_suffx
+			end
 		end
 	end
 	push!(constraints.descriptions, desc)
@@ -45,34 +49,6 @@ end
 
 """"""
 const push_constraint! = add_constraint!
-
-""""""
-function delete_constraint!(constraints::Constraints, check::Function)
-	delete!(constraints.checks, check)
-	delete!(constraints.constraints, check)
-	delete!(constraints.descriptions, check)
-	return nothing
-end
-
-""""""
-function satisfies_constraints(
-	partition,
-	constraints::Constraints;
-	check_population::Bool = true,
-	kwargs...
-)::Bool
-	# if check_population && !satisfies_constraint(constraints.population_constraint, partition; kwargs...)
-	# 	return false
-	# end
-
-	# for satisfies_fn in constraints.checks
-	# 	constraint = constraints.constraints[satisfies_fn]
-	# 	if !_apply_constraint_fn(satisfies_fn, partition, constraint; kwargs...)
-	# 		return false
-	# 	end
-	# end
-	return true
-end
 
 """"""
 # function _apply_constraint_fn(
@@ -91,17 +67,6 @@ end
 # 		rethrow(e)
 # 	end
 # end
-
-""""""
-function interpret_constraints(constraints)
-    mfr_constraints = mfr_initialize_constraints()
-	mfr_add_constraint!(mfr_constraints, constraints.population_constraint)
-	# for check in constraints.checks
-	# 	constraint = constraints.constraints[check]
-	# 	# if constraint isa WHATEVER
-	# end
-    return mfr_constraints
-end
 
 # """
 #     ContiguityConstraint()

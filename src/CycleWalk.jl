@@ -56,6 +56,8 @@ export AbstractGraph,
     # constraints
     initialize_constraints,
     Constraints,
+    satisfies_constraint,
+    satisfies_constraints,
     add_constraint!,
     push_constraint!,
     AbstractConstraint,
@@ -152,11 +154,15 @@ include("./proposals/update.jl")
 include("./diagnostics/proposal_diagnostics_types.jl")
 
 include("./measure/constraints/constraints.jl")
+include("./measure/constraints/mfr_constraints_interpreter.jl")
 
 include("./partition/link_cut_partition.jl")
 
+include("./measure/constraints/check_constraints.jl")
+
 include("./measure/data/regional_split_data.jl")
 include("./measure/constraints/pack_region.jl")
+include("./measure/constraints/balance.jl")
 
 include("./measure/measure.jl")
 include("./measure/energy/defaults.jl")
