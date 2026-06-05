@@ -64,8 +64,8 @@ tests = [
     "small_square_p88_polsby_popper",
     "test_constraints",
     ]
-@testset verbose = true "CycleWalk Tests" begin
-    for t in tests
+for t in tests
+    @testset verbose = true "$t" begin
         tp = joinpath(testdir, "test_cases","$(t).jl")
         include(tp)
     end
