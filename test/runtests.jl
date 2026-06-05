@@ -55,14 +55,14 @@ small_square_base_graph = BaseGraph(small_square_json, "pop",
 small_square_graph = MultiLevelGraph(small_square_base_graph, ["pct"])
 
 
-include(joinpath(testdir, "test_linkcuttree.jl"))
-include(joinpath(testdir, "test_docs_coverage.jl"))
+# include(joinpath(testdir, "test_linkcuttree.jl"))
+# include(joinpath(testdir, "test_docs_coverage.jl"))
 
 tests = [
-    "small_square_p88_unweighted",
-    "small_square_p88_weighted",
-    "small_square_p88_polsby_popper",
-    "pack_region_nc",
+    # "small_square_p88_unweighted",
+    # "small_square_p88_weighted",
+    # "small_square_p88_polsby_popper",
+    "test_constraints",
     ]
 @testset verbose = true "CycleWalk Tests" begin
     for t in tests

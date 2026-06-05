@@ -28,6 +28,7 @@ using MetropolizedForestRecom:
     AbstractConstraint,
     PopulationConstraint,
     PackNodeConstraint,
+    AllowedExcessDistsInCoarseNodes,
     # WANT ConstrainDiscontinuousTraversals,
     # WANT -- but rename -- MaxCoarseNodeSplits,
     # WANT -- but rename -- MaxSharedCoarseNodes,
@@ -65,6 +66,8 @@ export AbstractGraph,
     AbstractConstraint,
     PopulationConstraint,
     PackRegionConstraint,
+    CapRegionDistricts,
+    CapRegionDistConstraint,
     # ConstrainDiscontinuousTraversals,
     # MaxCoarseNodeSplits,
     # MaxSharedCoarseNodes,
@@ -157,6 +160,7 @@ include("./diagnostics/proposal_diagnostics_types.jl")
 
 include("./measure/constraints/constraints.jl")
 include("./measure/constraints/pack_region/pack_region_type.jl")
+include("./measure/constraints/cap_region_districts/cap_region_districts_type.jl")
 include("./measure/constraints/mfr_constraints_interpreter.jl")
 
 include("./partition/link_cut_partition.jl")
@@ -166,6 +170,7 @@ include("./measure/constraints/check_constraints.jl")
 
 include("./measure/data/regional_split_data.jl")
 include("./measure/constraints/pack_region/pack_region.jl")
+include("./measure/constraints/cap_region_districts/cap_region_districts.jl")
 include("./measure/constraints/balance.jl")
 
 include("./measure/measure.jl")
