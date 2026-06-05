@@ -34,6 +34,11 @@ function Writer(
     max_pop = constraints.population_constraint.max_pop
     atlasParam["population bounds"] = [min_pop, max_pop]
 
+    for ii = 1:length(constraints.constraints)
+        desc = constraints.descriptions[ii]
+        push!(get!(atlasParam, "constraints", String[]), desc)
+    end
+
     f = @__FILE__
 
     versionNumber = pkgversion(CycleWalk)

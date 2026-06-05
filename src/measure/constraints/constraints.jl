@@ -3,7 +3,6 @@ mutable struct Constraints
 	constraints::Vector{AbstractConstraint}
 	descriptions::Vector{String}
 end
-# TODO: Add to atlas in writer
 
 """"""
 function Constraints(

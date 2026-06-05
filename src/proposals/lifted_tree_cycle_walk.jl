@@ -170,6 +170,38 @@ function get_cuts_and_links(
     return cuts, links
 end
 
+function revert_tentative_proposal!(
+    partition::LinkCutPartition,
+    distPair::Tuple{Int, Int},
+    links::Vector{Vector{T}},
+    cuts::Vector{Vector{T}},
+    old_root1::Int,
+    old_root2::Int
+) where T <: Int
+    new_root1 = partition.district_roots[distPair[1]]
+    new_root2 = partition.district_roots[distPair[2]]
+
+    for link in links
+        evert!(partition.lct.nodes[link[2]])
+        cut!(partition.lct.nodes[link[1]])
+    end
+    for cut in cuts
+        u = partition.lct.nodes[cut[1]]
+        v = partition.lct.nodes[cut[2]]
+        evert!(u)
+        link!(u,v)
+    end
+
+    partition.district_roots[distPair[1]] = old_root1
+    partition.district_roots[distPair[2]] = old_root2
+    delete!(partition.roots_to_district, new_root1)
+    delete!(partition.roots_to_district, new_root2)
+    partition.roots_to_district[old_root1] = distPair[1]
+    partition.roots_to_district[old_root2] = distPair[2]
+    evert!(partition.lct.nodes[old_root1])
+    evert!(partition.lct.nodes[old_root2])
+end
+
 function find_proposal_prob_ratio!(
     partition::LinkCutPartition, 
     distPair::Tuple{Int, Int}, 
@@ -178,7 +210,8 @@ function find_proposal_prob_ratio!(
     sum_edge_weight_products::Float64,
     w1w2_cuts_inv::Float64,
     w1w2_links_inv::Float64,
-    swap_link11::Bool
+    swap_link11::Bool,
+    constraints::Constraints
 ) where T <: Int
     for cut in cuts
         cut!(partition.lct.nodes[cut[2]])
@@ -220,6 +253,20 @@ function find_proposal_prob_ratio!(
     new_cross_d_edg = Dict{Tuple{Int64,Int64}, Set{SimpleWeightedEdge}}()
     find_cross_district_edges!(partition, collect(distPair), new_cross_d_edg,
                                update=true)
+
+    proposal_update = Update(distPair, links, cuts, new_cross_d_edg, swap_link11)
+    energy_data_snapshot = deepcopy(partition.energy_data)
+    constraints_ok = satisfies_constraints(partition, constraints,
+                                           collect(distPair);
+                                           update=proposal_update)
+    partition.energy_data = energy_data_snapshot
+    if !constraints_ok
+        revert_tentative_proposal!(partition, distPair, links, cuts,
+                                   old_root1, old_root2)
+        partition.node_to_dist_update .= partition.node_to_dist
+        return 0, nothing
+    end
+
     old_keys = [k for k in keys(partition.cross_district_edges) 
                 if distPair[1] in k || distPair[2] in k]
 
@@ -239,27 +286,10 @@ function find_proposal_prob_ratio!(
     prob/= (sum_edge_weight_products + w1w2_links_inv - w1w2_cuts_inv)
 
     # revert
-    for link in links
-        evert!(partition.lct.nodes[link[2]])
-        cut!(partition.lct.nodes[link[1]])
-    end
-    for cut in cuts
-        u = partition.lct.nodes[cut[1]]
-        v = partition.lct.nodes[cut[2]]
-        evert!(u)
-        link!(u,v)
-    end
-    # revert roots
-    partition.district_roots[distPair[1]] = old_root1
-    partition.district_roots[distPair[2]] = old_root2
-    delete!(partition.roots_to_district, new_roots[1].vertex)
-    delete!(partition.roots_to_district, new_roots[2].vertex)
-    partition.roots_to_district[old_root1] = distPair[1]
-    partition.roots_to_district[old_root2] = distPair[2]
-    evert!(partition.lct.nodes[old_root1])
-    evert!(partition.lct.nodes[old_root2])
+    revert_tentative_proposal!(partition, distPair, links, cuts,
+                               old_root1, old_root2)
 
-    return prob, new_cross_d_edg
+    return prob, proposal_update
 end
 
 function get_log_tree_count_ratio(
@@ -389,12 +419,10 @@ function lifted_tree_cycle_walk!(
     swap_link11 = swap_assignment_check(path_ind_l11, edge_inds, uPath, vPath, 
                                         cycle_weights)
 
-    p, new_cross_d_edg = find_proposal_prob_ratio!(partition, distPair, links, 
-                                                   cuts, 
-                                                   cum_edge_weight_product[end],
-                                                   w1w2_cuts_inv,
-                                                   w1w2_links_inv, 
-                                                   swap_link11)
+    p, update = find_proposal_prob_ratio!(partition, distPair, links, cuts, 
+                                          cum_edge_weight_product[end],
+                                          w1w2_cuts_inv, w1w2_links_inv, 
+                                          swap_link11, constraints)
 
     gather_lifted_cycle_walk_diagnostics!(diagnostics; accept_ratio=p,
                                           cycle_weights=cycle_weights, 
@@ -405,9 +433,7 @@ function lifted_tree_cycle_walk!(
                                           swap_data=(path_ind_l11, swap_link11),
                                           len_uPath=length(uPath),
                                           partition=partition)
-    # partition.update_index += 1
-    return p, Update(distPair, links, cuts, new_cross_d_edg, swap_link11)
-                     # partition.update_identifier+1)
+    return p, update
 end
 
 

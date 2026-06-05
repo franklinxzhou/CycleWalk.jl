@@ -46,29 +46,6 @@ function update_partition!(
     partition::LinkCutPartition,
     update::Update{T}
 ) where T <: Int
-    # @show distPair, links, cuts
-
-    # @show "debugging 1"
-    # for node_ind = 1:partition.graph.num_nodes
-    #     node = partition.lct.nodes[node_ind]
-    #     r = find_root!(node).vertex
-    #     # if !(r in partition.district_roots)
-    #     #     @show node_ind, r
-    #     # end
-    #     @assert r in partition.district_roots
-    #     @assert haskey(partition.roots_to_district, r)
-    # end
-
-    # @show cuts, links
-    # for cut in cuts
-    #     @show find_root!(partition.lct.nodes[cut[1]]).vertex
-    #     @show find_root!(partition.lct.nodes[cut[2]]).vertex
-    # end
-    # for link in links
-    #     @show find_root!(partition.lct.nodes[link[1]]).vertex
-    #     @show find_root!(partition.lct.nodes[link[2]]).vertex
-    # end
-
     for cut in update.cuts
         evert!(partition.lct.nodes[cut[1]])
         cut!(partition.lct.nodes[cut[2]])
@@ -117,32 +94,8 @@ function update_partition!(
 
     partition.identifier += 1
     for (key, eData) in partition.energy_data
-        # @show update.changed_districts
-        # @show "showing eData:", eData
         update_energy_data!(eData, partition, update)
-        # @show "showing eData:", eData
-    end
-    
-    # tpop = 0
-    # for di = 1:partition.num_dists
-    #     r = partition.lct.nodes[partition.district_roots[di]]
-    #     pop = sum_cc(r, partition, partition.graph.pop_col)
-    #     @show di, pop
-    #     tpop += pop
-    # end
-    # @show tpop, partition.graph.total_pop
-    # @show partition.district_roots
-    # @show "debugging 2"
-    # for node_ind = 1:partition.graph.num_nodes
-    #     node = partition.lct.nodes[node_ind]
-    #     r = find_root!(node).vertex
-    #     # if !(r in partition.district_roots)
-    #     #     @show node_ind, r
-    #     # end
-    #     @assert r in partition.district_roots
-    #     @assert haskey(partition.roots_to_district, r)
-    # end
-    # @assert tpop == partition.graph.total_pop
+    end 
 end
 
 

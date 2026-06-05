@@ -52,7 +52,7 @@ name = "NC graph pack-region constraint"
         measure = Measure()
         chain_rng = PCG.PCGStateOneseq(UInt64, 8888)
         preserved = true
-        for _ = 1:100
+        for _ = 1:1000
             run_metropolis_hastings!(partition, proposal, measure, 1, chain_rng)
             if !satisfies_constraint(partition, pack_constraint)
                 preserved = false
@@ -60,5 +60,12 @@ name = "NC graph pack-region constraint"
             end
         end
         @test preserved
+
+        run_metropolis_hastings!(partition, proposal, measure, 1000, chain_rng)
+        satisfied1 = satisfies_constraint(partition, pack_constraint)
+        partition.identifier += 1 # force update of energy data
+        satisfied2 = satisfies_constraint(partition, pack_constraint)
+        @test satisfied1 && satisfied2
+
     end
 end
