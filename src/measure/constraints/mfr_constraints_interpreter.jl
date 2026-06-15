@@ -24,6 +24,8 @@ to_mfr_constraint(constraint::PackRegionConstraint, graph::Graph) =
 	parse_pack_region_constraint(constraint)
 to_mfr_constraint(constraint::CapRegionDistricts, graph::Graph) =
 	parse_cap_region_constraint(constraint, graph)
+to_mfr_constraint(constraint::BudgetedRegionConstraint, graph::Graph) =
+	parse_budgeted_region_constraint(constraint)
 # ... etc
 
 """"""
@@ -62,4 +64,19 @@ function parse_cap_region_constraint(
 	@assert excess_split >= 0 "Derived excess_split must be non-negative"
 
 	return AllowedExcessDistsInCoarseNodes(excess_split, constraint.ideal_pop)
+end
+
+""""""
+
+function parse_budgeted_region_constraint(
+	constraint::BudgetedRegionConstraint
+)
+	if constraint.pack_budget != 0
+		error("pack_budget != 0 case not implemented in MFR yet.")
+	end
+
+	return MaxTotalExcessDistsInCoarseNodes(
+		constraint.cap_budget,
+		constraint.ideal_pop,
+	)
 end
