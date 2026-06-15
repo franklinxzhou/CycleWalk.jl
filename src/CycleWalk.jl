@@ -30,6 +30,7 @@ using MetropolizedForestRecom:
     PackNodeConstraint,
     AllowedExcessDistsInCoarseNodes,
     MaxTotalExcessDistsInCoarseNodes,
+    MaxTotalMissingPackedDistsInCoarseNodes,
     # WANT ConstrainDiscontinuousTraversals,
     # WANT -- but rename -- MaxCoarseNodeSplits,
     # WANT -- but rename -- MaxSharedCoarseNodes,
