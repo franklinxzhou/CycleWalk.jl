@@ -65,6 +65,7 @@ tests = [
     "test_constraints",
     "test_budgeted_region_constraint",
     "test_budgeted_region_mfr_translation",
+    "test_weighted_initialization",
     ]
 for t in tests
     @testset verbose = true "$t" begin

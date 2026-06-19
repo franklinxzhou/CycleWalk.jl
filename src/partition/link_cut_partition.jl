@@ -1,3 +1,92 @@
+function build_mfr_initializer(
+    init_mode::Union{Symbol,AbstractString},
+    init_county_cut_weight::Real,
+    init_mcd_cut_weight::Real,
+    init_fine_cut_weight::Real,
+)::AbstractInitializer
+    mode = init_mode isa Symbol ? init_mode : Symbol(init_mode)
+
+    if mode == :uniform
+        return UniformInitializer()
+    elseif mode == :boundary_weighted
+        return BoundaryWeightedInitializer(
+            Float64(init_county_cut_weight),
+            Float64(init_mcd_cut_weight),
+            Float64(init_fine_cut_weight),
+        )
+    else
+        throw(ArgumentError("Unknown init_mode: $init_mode"))
+    end
+end
+
+""""""
+function get_district_in_initialized_partition(
+    partition::MultiLevelPartition,
+    node::Tuple{Vararg{String}},
+)::Union{Int, Nothing}
+    for level in length(node):-1:1
+        prefix = node[1:level]
+        if haskey(partition.node_to_district, prefix)
+            return partition.node_to_district[prefix]
+        end
+    end
+
+    return nothing
+end
+
+""""""
+function lift_assignment_to_original_graph(
+    original_graph::MultiLevelGraph,
+    initialized_partition::MultiLevelPartition,
+)::Dict{Tuple{Vararg{String}}, Int}
+    initialized_graph = initialized_partition.graph
+
+    original_fine_level = original_graph.num_levels
+    initialized_fine_level = initialized_graph.num_levels
+
+    original_fine_graph =
+        original_graph.graphs_by_level[original_fine_level]
+    initialized_fine_graph =
+        initialized_graph.graphs_by_level[initialized_fine_level]
+
+    if original_fine_graph.num_nodes != initialized_fine_graph.num_nodes
+        error(
+            "Cannot lift initialized assignment back to original graph: " *
+            "fine graph node counts differ. " *
+            "Original has $(original_fine_graph.num_nodes), initialized has " *
+            "$(initialized_fine_graph.num_nodes)."
+        )
+    end
+
+    node_to_dist = Dict{Tuple{Vararg{String}}, Int}()
+
+    for node_id in 1:original_fine_graph.num_nodes
+        original_node =
+            original_graph.id_to_partitions[original_fine_level][node_id]
+
+        initialized_node =
+            initialized_graph.id_to_partitions[initialized_fine_level][node_id]
+
+        district = get_district_in_initialized_partition(
+            initialized_partition,
+            initialized_node,
+        )
+
+        if district === nothing
+            error(
+                "Cannot lift initialized assignment back to original graph: " *
+                "initialized node $(initialized_node) has no district."
+            )
+        end
+
+        node_to_dist[original_node] = district
+    end
+
+    return node_to_dist
+end
+
+""""""
+
 mutable struct LinkCutPartition <: AbstractPartition
     num_dists::Int64
     cross_district_edges::Dict{Tuple{Int64,Int64}, Set{SimpleWeightedEdge}}
@@ -15,26 +104,94 @@ mutable struct LinkCutPartition <: AbstractPartition
 end
 
 """"""
+function get_district_fine_node_ids(
+    partition::MultiLevelPartition,
+    district::Int,
+)::Vector{Int}
+    graph = partition.graph
+    fine_level = graph.num_levels
+    fine_graph = graph.graphs_by_level[fine_level]
+
+    fine_node_ids = Int[]
+
+    for node_id in 1:fine_graph.num_nodes
+        node = graph.id_to_partitions[fine_level][node_id]
+        node_district = get_district_in_initialized_partition(partition, node)
+
+        if node_district == district
+            push!(fine_node_ids, node_id)
+        end
+    end
+
+    return fine_node_ids
+end
+
+""""""
+function sample_district_fine_tree_edges(
+    partition::MultiLevelPartition,
+    district::Int,
+    rng::AbstractRNG,
+)
+    graph = partition.graph
+    base_graph = graph.graphs_by_level[end]
+    edge_type = edgetype(base_graph.simple_graph)
+
+    fine_node_ids = get_district_fine_node_ids(partition, district)
+    if isempty(fine_node_ids)
+        error("District $(district) has no fine-level nodes.")
+    end
+
+    district_graph, vmap = induced_subgraph(
+        base_graph.simple_graph,
+        fine_node_ids,
+    )
+
+    if nv(district_graph) != length(fine_node_ids)
+        error(
+            "Failed to build fine-level district subgraph for district " *
+            "$(district)."
+        )
+    end
+
+    if nv(district_graph) > 1 && ne(district_graph) == 0
+        error(
+            "District $(district) has multiple fine-level nodes but no " *
+            "fine-level edges."
+        )
+    end
+
+    sampled_edges = wilson_rst(district_graph, rng)
+    tree_edges = Vector{edge_type}(undef, 0)
+
+    for e in sampled_edges
+        push!(
+            tree_edges,
+            edge_type(
+                vmap[src(e)],
+                vmap[dst(e)],
+                get_weight(district_graph, src(e), dst(e)),
+            ),
+        )
+    end
+
+    return tree_edges
+end
+
+""""""
 function LinkCutPartition(
     partition::MultiLevelPartition,
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64)
 )::LinkCutPartition
-    edge_type = edgetype(partition.subgraphs[1].graphs_by_level[1][()])
+    base_graph = partition.graph.graphs_by_level[end]
+    edge_type = edgetype(base_graph.simple_graph)
     edges = Vector{edge_type}(undef, 0)
 
-    base_graph = partition.graph.graphs_by_level[end]
     node_to_dist = Vector{Int64}(undef, base_graph.num_nodes)
     node_to_dist_update = Vector{Int64}(undef, base_graph.num_nodes)
-    log_tree_counts = Vector{Int64}(undef, partition.num_dists)
 
-    for di = 1:partition.num_dists
-        dg = partition.subgraphs[di].graphs_by_level[1][()]
-        vmap = partition.subgraphs[di].vmaps[1][()]
-        tree_edges = wilson_rst(dg, rng)
-        tree_edges = [edge_type(vmap[src(e)],vmap[dst(e)], 
-                                get_weight(dg, src(e), dst(e))) 
-                      for e in tree_edges]
-        edges = [edges; tree_edges]
+    for di in 1:partition.num_dists
+        tree_edges = sample_district_fine_tree_edges(partition, di, rng)
+        append!(edges, tree_edges)
     end
 
     lct = link_cut_tree(base_graph.simple_graph, edges)
@@ -57,18 +214,48 @@ function LinkCutPartition(
 end
 
 """"""
+
 function LinkCutPartition(
-    graph::MultiLevelGraph, 
+    graph::MultiLevelGraph,
     constraints::Constraints,
     num_dists::U;
-    rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
-    verbose::Bool=false
+    rng::AbstractRNG = PCG.PCGStateOneseq(UInt64),
+    verbose::Bool = false,
+    init_mode::Union{Symbol,AbstractString} = :uniform,
+    init_county_cut_weight::Real = 50.0,
+    init_mcd_cut_weight::Real = 10.0,
+    init_fine_cut_weight::Real = 1.0,
+    initializer::Union{Nothing,AbstractInitializer} = nothing,
+    initializer_levels::Union{Nothing,Vector{String}} = nothing,
 ) where U <: Int
-    mfr_constraints, levels = interpret_constraints(constraints, graph)
+    mfr_constraints, constraint_levels = interpret_constraints(constraints, graph)
+
+    levels =
+        initializer_levels === nothing ?
+        constraint_levels :
+        initializer_levels
+
     ml_graph = multi_level_graph(graph.graphs_by_level[end], levels)
-    partition = MultiLevelPartition(ml_graph, mfr_constraints, num_dists; 
-                                    rng=rng);
-    node_to_dist = flatten_assignment(partition)
+    
+    mfr_initializer =
+        initializer === nothing ?
+        build_mfr_initializer(
+            init_mode,
+            init_county_cut_weight,
+            init_mcd_cut_weight,
+            init_fine_cut_weight,
+        ) :
+        initializer
+
+    partition = MultiLevelPartition(
+        ml_graph,
+        mfr_constraints,
+        num_dists;
+        rng = rng,
+        initializer = mfr_initializer,
+    )
+
+    node_to_dist = lift_assignment_to_original_graph(graph, partition)
     partition = MultiLevelPartition(graph, node_to_dist)
 
     if verbose
@@ -327,6 +514,20 @@ function get_center_leaves_moments(partition::LinkCutPartition;p=1)
     return center_moments
 
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

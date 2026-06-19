@@ -31,6 +31,9 @@ using MetropolizedForestRecom:
     AllowedExcessDistsInCoarseNodes,
     MaxTotalExcessDistsInCoarseNodes,
     MaxTotalMissingPackedDistsInCoarseNodes,
+    AbstractInitializer,
+    UniformInitializer,
+    BoundaryWeightedInitializer,
     # WANT ConstrainDiscontinuousTraversals,
     # WANT -- but rename -- MaxCoarseNodeSplits,
     # WANT -- but rename -- MaxSharedCoarseNodes,
@@ -50,6 +53,11 @@ export AbstractGraph,
     edge_weight,
     build_graph,
     multi_level_graph,
+
+    # initializers
+    AbstractInitializer,
+    UniformInitializer,
+    BoundaryWeightedInitializer,
 
     # proposals
     build_one_tree_cycle_walk,
