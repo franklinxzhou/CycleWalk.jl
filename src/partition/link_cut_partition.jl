@@ -24,7 +24,7 @@ function get_district_in_initialized_partition(
     partition::MultiLevelPartition,
     node::Tuple{Vararg{String}},
 )::Union{Int, Nothing}
-    for level in 1:length(node)
+    for level in length(node):-1:1
         prefix = node[1:level]
         if haskey(partition.node_to_district, prefix)
             return partition.node_to_district[prefix]
@@ -104,26 +104,94 @@ mutable struct LinkCutPartition <: AbstractPartition
 end
 
 """"""
+function get_district_fine_node_ids(
+    partition::MultiLevelPartition,
+    district::Int,
+)::Vector{Int}
+    graph = partition.graph
+    fine_level = graph.num_levels
+    fine_graph = graph.graphs_by_level[fine_level]
+
+    fine_node_ids = Int[]
+
+    for node_id in 1:fine_graph.num_nodes
+        node = graph.id_to_partitions[fine_level][node_id]
+        node_district = get_district_in_initialized_partition(partition, node)
+
+        if node_district == district
+            push!(fine_node_ids, node_id)
+        end
+    end
+
+    return fine_node_ids
+end
+
+""""""
+function sample_district_fine_tree_edges(
+    partition::MultiLevelPartition,
+    district::Int,
+    rng::AbstractRNG,
+)
+    graph = partition.graph
+    base_graph = graph.graphs_by_level[end]
+    edge_type = edgetype(base_graph.simple_graph)
+
+    fine_node_ids = get_district_fine_node_ids(partition, district)
+    if isempty(fine_node_ids)
+        error("District $(district) has no fine-level nodes.")
+    end
+
+    district_graph, vmap = induced_subgraph(
+        base_graph.simple_graph,
+        fine_node_ids,
+    )
+
+    if nv(district_graph) != length(fine_node_ids)
+        error(
+            "Failed to build fine-level district subgraph for district " *
+            "$(district)."
+        )
+    end
+
+    if nv(district_graph) > 1 && ne(district_graph) == 0
+        error(
+            "District $(district) has multiple fine-level nodes but no " *
+            "fine-level edges."
+        )
+    end
+
+    sampled_edges = wilson_rst(district_graph, rng)
+    tree_edges = Vector{edge_type}(undef, 0)
+
+    for e in sampled_edges
+        push!(
+            tree_edges,
+            edge_type(
+                vmap[src(e)],
+                vmap[dst(e)],
+                get_weight(district_graph, src(e), dst(e)),
+            ),
+        )
+    end
+
+    return tree_edges
+end
+
+""""""
 function LinkCutPartition(
     partition::MultiLevelPartition,
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64)
 )::LinkCutPartition
-    edge_type = edgetype(partition.subgraphs[1].graphs_by_level[1][()])
+    base_graph = partition.graph.graphs_by_level[end]
+    edge_type = edgetype(base_graph.simple_graph)
     edges = Vector{edge_type}(undef, 0)
 
-    base_graph = partition.graph.graphs_by_level[end]
     node_to_dist = Vector{Int64}(undef, base_graph.num_nodes)
     node_to_dist_update = Vector{Int64}(undef, base_graph.num_nodes)
-    log_tree_counts = Vector{Int64}(undef, partition.num_dists)
 
-    for di = 1:partition.num_dists
-        dg = partition.subgraphs[di].graphs_by_level[1][()]
-        vmap = partition.subgraphs[di].vmaps[1][()]
-        tree_edges = wilson_rst(dg, rng)
-        tree_edges = [edge_type(vmap[src(e)],vmap[dst(e)], 
-                                get_weight(dg, src(e), dst(e))) 
-                      for e in tree_edges]
-        edges = [edges; tree_edges]
+    for di in 1:partition.num_dists
+        tree_edges = sample_district_fine_tree_edges(partition, di, rng)
+        append!(edges, tree_edges)
     end
 
     lct = link_cut_tree(base_graph.simple_graph, edges)
@@ -446,6 +514,20 @@ function get_center_leaves_moments(partition::LinkCutPartition;p=1)
     return center_moments
 
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
