@@ -47,6 +47,12 @@ node_border_col= "node_border_col" in keys(params["plans"]) ? params["plans"]["n
 edge_perimeter_col= "edge_perimeter_col" in keys(params["plans"]) ? params["plans"]["edge_perimeter_col"] : nothing 
 compress= "compress" in keys(params["run"]) ? "."*params["run"]["compress"] : "" 
 
+init_params = get(params, "initialization", Dict{String,Any}())
+init_mode = get(init_params, "init_mode", "uniform")
+init_county_cut_weight = get(init_params, "init_county_cut_weight", 20.0)
+init_mcd_cut_weight = get(init_params, "init_mcd_cut_weight", 5.0)
+init_fine_cut_weight = get(init_params, "init_fine_cut_weight", 1.0)
+
 node_data=Set(node_data) # change from vector to Set
 @assert 0 ≤ two_cycle_walk_frac ≤ 1
 

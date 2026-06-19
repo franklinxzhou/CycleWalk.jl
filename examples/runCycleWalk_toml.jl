@@ -26,10 +26,17 @@ constraints = initialize_constraints()
 add_constraint!(constraints, PopulationConstraint(graph, num_dists, pop_dev))
 
 rng = PCG.PCGStateOneseq(UInt64, rng_seed)
-initial_partition = MultiLevelPartition(graph, constraints, num_dists; 
-                                        rng=rng);
 
-partition = LinkCutPartition(initial_partition, rng);
+partition = LinkCutPartition(
+    graph,
+    constraints,
+    num_dists;
+    rng = rng,
+    init_mode = init_mode,
+    init_county_cut_weight = init_county_cut_weight,
+    init_mcd_cut_weight = init_mcd_cut_weight,
+    init_fine_cut_weight = init_fine_cut_weight,
+)
 
 cycle_walk = build_two_tree_cycle_walk(constraints)
 internal_walk = build_one_tree_cycle_walk(constraints)
