@@ -158,8 +158,15 @@ function LinkCutPartition(
     init_mcd_cut_weight::Real = 10.0,
     init_fine_cut_weight::Real = 1.0,
     initializer::Union{Nothing,AbstractInitializer} = nothing,
+    initializer_levels::Union{Nothing,Vector{String}} = nothing,
 ) where U <: Int
-    mfr_constraints, levels = interpret_constraints(constraints, graph)
+    mfr_constraints, constraint_levels = interpret_constraints(constraints, graph)
+
+    levels =
+        initializer_levels === nothing ?
+        constraint_levels :
+        initializer_levels
+
     ml_graph = multi_level_graph(graph.graphs_by_level[end], levels)
     
     mfr_initializer =
