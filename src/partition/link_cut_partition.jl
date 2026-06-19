@@ -20,6 +20,72 @@ function build_mfr_initializer(
 end
 
 """"""
+function get_district_in_initialized_partition(
+    partition::MultiLevelPartition,
+    node::Tuple{Vararg{String}},
+)::Union{Int, Nothing}
+    for level in 1:length(node)
+        prefix = node[1:level]
+        if haskey(partition.node_to_district, prefix)
+            return partition.node_to_district[prefix]
+        end
+    end
+
+    return nothing
+end
+
+""""""
+function lift_assignment_to_original_graph(
+    original_graph::MultiLevelGraph,
+    initialized_partition::MultiLevelPartition,
+)::Dict{Tuple{Vararg{String}}, Int}
+    initialized_graph = initialized_partition.graph
+
+    original_fine_level = original_graph.num_levels
+    initialized_fine_level = initialized_graph.num_levels
+
+    original_fine_graph =
+        original_graph.graphs_by_level[original_fine_level]
+    initialized_fine_graph =
+        initialized_graph.graphs_by_level[initialized_fine_level]
+
+    if original_fine_graph.num_nodes != initialized_fine_graph.num_nodes
+        error(
+            "Cannot lift initialized assignment back to original graph: " *
+            "fine graph node counts differ. " *
+            "Original has $(original_fine_graph.num_nodes), initialized has " *
+            "$(initialized_fine_graph.num_nodes)."
+        )
+    end
+
+    node_to_dist = Dict{Tuple{Vararg{String}}, Int}()
+
+    for node_id in 1:original_fine_graph.num_nodes
+        original_node =
+            original_graph.id_to_partitions[original_fine_level][node_id]
+
+        initialized_node =
+            initialized_graph.id_to_partitions[initialized_fine_level][node_id]
+
+        district = get_district_in_initialized_partition(
+            initialized_partition,
+            initialized_node,
+        )
+
+        if district === nothing
+            error(
+                "Cannot lift initialized assignment back to original graph: " *
+                "initialized node $(initialized_node) has no district."
+            )
+        end
+
+        node_to_dist[original_node] = district
+    end
+
+    return node_to_dist
+end
+
+""""""
 
 mutable struct LinkCutPartition <: AbstractPartition
     num_dists::Int64
@@ -114,7 +180,7 @@ function LinkCutPartition(
         initializer = mfr_initializer,
     )
 
-    node_to_dist = flatten_assignment(partition)
+    node_to_dist = lift_assignment_to_original_graph(graph, partition)
     partition = MultiLevelPartition(graph, node_to_dist)
 
     if verbose
