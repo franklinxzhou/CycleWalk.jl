@@ -1,3 +1,26 @@
+function build_mfr_initializer(
+    init_mode::Union{Symbol,AbstractString},
+    init_county_cut_weight::Real,
+    init_mcd_cut_weight::Real,
+    init_fine_cut_weight::Real,
+)::AbstractInitializer
+    mode = init_mode isa Symbol ? init_mode : Symbol(init_mode)
+
+    if mode == :uniform
+        return UniformInitializer()
+    elseif mode == :boundary_weighted
+        return BoundaryWeightedInitializer(
+            Float64(init_county_cut_weight),
+            Float64(init_mcd_cut_weight),
+            Float64(init_fine_cut_weight),
+        )
+    else
+        throw(ArgumentError("Unknown init_mode: $init_mode"))
+    end
+end
+
+""""""
+
 mutable struct LinkCutPartition <: AbstractPartition
     num_dists::Int64
     cross_district_edges::Dict{Tuple{Int64,Int64}, Set{SimpleWeightedEdge}}
@@ -57,17 +80,40 @@ function LinkCutPartition(
 end
 
 """"""
+
 function LinkCutPartition(
-    graph::MultiLevelGraph, 
+    graph::MultiLevelGraph,
     constraints::Constraints,
     num_dists::U;
-    rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
-    verbose::Bool=false
+    rng::AbstractRNG = PCG.PCGStateOneseq(UInt64),
+    verbose::Bool = false,
+    init_mode::Union{Symbol,AbstractString} = :uniform,
+    init_county_cut_weight::Real = 50.0,
+    init_mcd_cut_weight::Real = 10.0,
+    init_fine_cut_weight::Real = 1.0,
+    initializer::Union{Nothing,AbstractInitializer} = nothing,
 ) where U <: Int
     mfr_constraints, levels = interpret_constraints(constraints, graph)
     ml_graph = multi_level_graph(graph.graphs_by_level[end], levels)
-    partition = MultiLevelPartition(ml_graph, mfr_constraints, num_dists; 
-                                    rng=rng);
+    
+    mfr_initializer =
+        initializer === nothing ?
+        build_mfr_initializer(
+            init_mode,
+            init_county_cut_weight,
+            init_mcd_cut_weight,
+            init_fine_cut_weight,
+        ) :
+        initializer
+
+    partition = MultiLevelPartition(
+        ml_graph,
+        mfr_constraints,
+        num_dists;
+        rng = rng,
+        initializer = mfr_initializer,
+    )
+
     node_to_dist = flatten_assignment(partition)
     partition = MultiLevelPartition(graph, node_to_dist)
 
