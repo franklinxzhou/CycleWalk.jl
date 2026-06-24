@@ -85,7 +85,7 @@ function find_first_valid_cut(
     while first_valid_cut > 1
         first_valid_cut -= 1
         @assert first_valid_cut > 0
-        pop1 = sum(cycle_weights[1:first_valid_cut])
+        pop1 = sum(@view cycle_weights[1:first_valid_cut])
         pop2 = totpop_uv - pop1
         if !(min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop)
             first_valid_cut += 1
@@ -105,7 +105,7 @@ function find_cuttable_edge_pairs(
     totpop_uv = sum(cycle_weights)
     min_pop = constraints.population_constraint.min_pop
     max_pop = constraints.population_constraint.max_pop
-    possible_pairs = Set()
+    possible_pairs = Set{Tuple{Int,Int}}()
 
     ### find valid cut with smallest index when paired with u1,v1
     first_valid_cut = find_first_valid_cut(cycle_weights, initial_cut_index, 
@@ -114,7 +114,7 @@ function find_cuttable_edge_pairs(
     for cut1 = 1:path_length
         found_cut = false
         for cut2 = max(cut1, first_valid_cut):path_length-1
-            pop1 = sum(cycle_weights[cut1:cut2])
+            pop1 = sum(@view cycle_weights[cut1:cut2])
             pop2 = totpop_uv - pop1
             if min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop
                 # @show "adding", cut1, cut2, pop1, pop2
@@ -335,13 +335,13 @@ function swap_assignment_check(
     overlap1 = 0
     tot_pop = sum(cycle_weights)
     if edge_inds[1] <= length(uPath)
-        overlap1 += sum(cycle_weights[edge_inds[1]:min(
+        overlap1 += sum(@view cycle_weights[edge_inds[1]:min(
                                                    length(uPath),edge_inds[2])])
     elseif edge_inds[1] > length(uPath)+1
-        overlap1 += sum(cycle_weights[length(uPath)+1:edge_inds[1]-1])
+        overlap1 += sum(@view cycle_weights[length(uPath)+1:edge_inds[1]-1])
     end
     if edge_inds[2] < length(cycle_weights)
-        overlap1 += sum(cycle_weights[max(length(uPath)+1, edge_inds[2]+1):end])
+        overlap1 += sum(@view cycle_weights[max(length(uPath)+1, edge_inds[2]+1):end])
     end
     # note: overlap2 = tot_pop - overlap1 and check is overlap1 > overlap2?
     uPathToInterval = (2*overlap1 > tot_pop) 
