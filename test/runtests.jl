@@ -63,6 +63,8 @@ tests = [
     "small_square_p88_weighted",
     "small_square_p88_polsby_popper",
     "test_constraints",
+    "test_budgeted_region_constraint",
+    "test_budgeted_region_mfr_translation",
     ]
 for t in tests
     @testset verbose = true "$t" begin

@@ -9,8 +9,9 @@ function interpret_constraints(constraints::Constraints, graph::Graph)
 				push!(level_list, constraint.region)
 			end
 		end
-		mfr_constraint = to_mfr_constraint(constraint, graph)
-		mfr_add_constraint!(mfr_constraints, mfr_constraint)
+		for mfr_constraint in to_mfr_constraints(constraint, graph)
+			mfr_add_constraint!(mfr_constraints, mfr_constraint)
+		end
 	end
     return mfr_constraints, level_list
 end
@@ -19,11 +20,18 @@ end
 to_mfr_constraint(constraint::AbstractConstraint, graph::Graph) = 
     error("Constraint type $(typeof(constraint)) not supported in MFR.")
 
+# Generic wrapper: old one-output translators become one-element lists
+to_mfr_constraints(constraint::AbstractConstraint, graph::Graph) =
+	[to_mfr_constraint(constraint, graph)]
+
 # Specific implementations
 to_mfr_constraint(constraint::PackRegionConstraint, graph::Graph) = 
 	parse_pack_region_constraint(constraint)
 to_mfr_constraint(constraint::CapRegionDistricts, graph::Graph) =
 	parse_cap_region_constraint(constraint, graph)
+# BRC uses the new list-output translator
+to_mfr_constraints(constraint::BudgetedRegionConstraint, graph::Graph) =
+	parse_budgeted_region_constraint(constraint)
 # ... etc
 
 """"""
@@ -62,4 +70,20 @@ function parse_cap_region_constraint(
 	@assert excess_split >= 0 "Derived excess_split must be non-negative"
 
 	return AllowedExcessDistsInCoarseNodes(excess_split, constraint.ideal_pop)
+end
+
+""""""
+function parse_budgeted_region_constraint(
+	constraint::BudgetedRegionConstraint
+)
+	return [
+		MaxTotalMissingPackedDistsInCoarseNodes(
+			constraint.pack_budget,
+			constraint.ideal_pop,
+		),
+		MaxTotalExcessDistsInCoarseNodes(
+			constraint.cap_budget,
+			constraint.ideal_pop,
+		),
+	]
 end
