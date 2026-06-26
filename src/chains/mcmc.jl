@@ -117,9 +117,19 @@ end
     if !(typeof(proposal) <: Vector)
         return proposal, 1
     end
-    proposal_weights = [proposal[i][1] for i = 1:length(proposal)]
-    index = findfirst(cumsum(proposal_weights) .> rand(rng))
-    return proposal[index][2], index
+    # Inverse-CDF sample without allocating a weights vector / cumsum / BitVector
+    # (this runs every MCMC step). Walk the running cumulative weight directly.
+    u = rand(rng)
+    cum = zero(T)
+    @inbounds for i = 1:length(proposal)
+        cum += proposal[i][1]
+        if cum > u
+            return proposal[i][2], i
+        end
+    end
+    # Fall back to the last proposal (guards float round-off when the weights
+    # sum to 1 and u is just below the final boundary).
+    return proposal[end][2], length(proposal)
 end
 
 

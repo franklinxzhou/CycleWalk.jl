@@ -45,7 +45,7 @@ end
 
 
 
-small_square_json = joinpath("test_graphs", "4x4pct_2x2cnty.json")
+small_square_json = joinpath(testdir, "test_graphs", "4x4pct_2x2cnty.json")
 small_square_node_data = Set(["county", "pct", "pop", "area", "border_length"])
 small_square_base_graph = BaseGraph(small_square_json, "pop", 
                                     inc_node_data=small_square_node_data,

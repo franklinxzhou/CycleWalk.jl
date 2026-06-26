@@ -10,26 +10,26 @@ as such, T is whatever type is used to keep track of the vertices.
 # abstract type AbstractNode{T} end
 
 mutable struct Node{T}
-    
+
     vertex::T
-    parent::Union{Node, Nothing}
-    pathParent::Union{Node, Nothing}
-    children::Vector{Union{Node, Nothing}}
+    parent::Union{Node{T}, Nothing}
+    pathParent::Union{Node{T}, Nothing}
+    children::Vector{Union{Node{T}, Nothing}}
     reversed::Bool
-    pathChildren::Set{Node}
+    pathChildren::Set{Node{T}}
 
     function Node{T}(
-        vertex, parent::Union{Node, Nothing}, 
-        leftchild::Union{Node, Nothing}, 
-        rightchild::Union{Node, Nothing}, 
+        vertex, parent::Union{Node, Nothing},
+        leftchild::Union{Node, Nothing},
+        rightchild::Union{Node, Nothing},
         pathParent::Union{Node, Nothing},
     ) where {T}
         n = new(vertex, parent, pathParent)
         n.reversed = false
-        n.children = Vector{Union{Node, Nothing}}(undef,2)
+        n.children = Vector{Union{Node{T}, Nothing}}(undef,2)
         setLeft!(n, leftchild)
         setRight!(n, rightchild)
-        n.pathChildren = Set{Node}()
+        n.pathChildren = Set{Node{T}}()
         return n
     end
 
@@ -69,7 +69,8 @@ end
 
 "Returns the index n has in its parent's vector of children. Requires a real parent."
 function childIndex(n::Node)
-    return findfirst(x->sameNode(n,x),n.parent.children)
+    c = n.parent.children
+    return sameNode(n, c[1]) ? 1 : (sameNode(n, c[2]) ? 2 : nothing)
 end
 
 function findSplayRoot(n::Node)

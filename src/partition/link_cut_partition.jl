@@ -107,37 +107,51 @@ function find_cross_district_edges!(
     else
         node_to_dist = lcp.node_to_dist
     end
-    graph = lcp.graph
-    simple_graph = graph.simple_graph
-    visited_nodes = Vector{Bool}([false for _ = 1:nv(simple_graph)])
+    simple_graph = lcp.graph.simple_graph
+    # The weighted adjacency is a SparseMatrixCSC, but `BaseGraph.simple_graph`
+    # is stored with the abstract `SimpleWeightedGraph` type, so iterating its
+    # CSC fields inline would be type-unstable. Pass the (concretely-typed at
+    # runtime) weight matrix into a worker through a function barrier so the BFS
+    # specializes and we can read each neighbor's weight straight from the column
+    # instead of doing a per-edge binary-search `get_weight`.
+    return _find_cross_district_edges!(lcp, districts, cross_district_edges,
+                                       node_to_dist, weights(simple_graph),
+                                       nv(simple_graph))
+end
+
+function _find_cross_district_edges!(
+    lcp::LinkCutPartition,
+    districts::Vector{Int},
+    cross_district_edges::Dict{Tuple{Int,Int}, Set{SimpleWeightedEdge}},
+    node_to_dist::Vector{Int},
+    wmat,                       # SparseMatrixCSC; untyped so no SparseArrays import
+    num_nodes::Int,
+)
+    # Column `v` of `wmat` stores each neighbor `n = rowval[k]` together with its
+    # weight `nzval[k] == get_weight(graph, v, n)` (symmetric, undirected graph).
+    colptr = wmat.colptr
+    rowval = wmat.rowval
+    nzval = wmat.nzval
+    visited_nodes = falses(num_nodes)
     for di in districts
         r = lcp.district_roots[di]
         queue = [r]
         while length(queue) > 0
             v = pop!(queue)
             visited_nodes[v] = true
-            for n in neighbors(simple_graph, v)
+            for k in colptr[v]:(colptr[v + 1] - 1)
+                n = rowval[k]
                 if visited_nodes[n] continue end
-                if get_weight(simple_graph, v, n) == 0 continue end
-                # rn = find_root!(lcp.lct.nodes[n]).vertex
+                w = nzval[k]
+                if w == 0 continue end
                 dj = node_to_dist[n]
-                # if (rn == r) != (dj == di)
-                #     @show "problem here"
-                #     @show n, rn, r, di, dj
-                #     @assert false
-                # end
-                # if rn == r
                 if di == dj
                     push!(queue, n)
                 else
-                    # dj = lcp.roots_to_district[rn]
                     dij = (min(di,dj), max(di, dj))
-                    if !haskey(cross_district_edges, dij)
-                        cross_district_edges[dij] =Set{SimpleWeightedEdge}()
-                    end 
-                    w = get_weight(simple_graph, v, n)
-                    e = SimpleWeightedEdge(v, n, w)
-                    push!(cross_district_edges[dij], e)
+                    edgeset = get!(() -> Set{SimpleWeightedEdge}(),
+                                   cross_district_edges, dij)
+                    push!(edgeset, SimpleWeightedEdge(v, n, w))
                 end
             end
         end
