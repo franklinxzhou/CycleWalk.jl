@@ -6,9 +6,9 @@ This repository contains Julia code to run the Metropolized Cycle Walk algorithm
 
 Metropolized Cycle Walk supports a number of different score/energy functions, which are used to define the distribution. The distribution encodes legal and policy preferences.
 
-Metropolized Cycle Walk outputs the samples into an [Atlas file](https://github.com/jonmjonm/AtlasIO.jl/blob/main/atlas_format.md). AtlasIO files can be loaded using Julia or Python using the [AtlasIO.jl](https://github.com/jonmjonm/AtlasIO.jl) library.
+Metropolized Cycle Walk outputs the samples into an [Atlas file](https://github.com/jonmjonm/AtlasIO.jl/blob/main/atlas_format.md). AtlasIO files can be loaded using Julia or Python using the [AtlasIO.jl](https://github.com/jonmjonm/AtlasIO.jl) library (see also [duke.is/QGAtlas](https://duke.is/QGAtlas)).
 
-A brief tutorial on using CycleWalk.jl, AtlasIO.jl, and the Atlas file format can be found in the Quantifying Gerrymandering [Documentation Pages](https://quantifyinggerrymandering.pages.oit.duke.edu/codedoc/). See also the arXiv paper [A Cycle Walk for Sampling Measures on Spanning Forests for Redistricting](https://arxiv.org/abs/2509.08629). More general information about the Quantifying Gerrymandering group can be found at the group's [Quantifying Gerrymandering Blog](https://sites.duke.edu/quantifyinggerrymandering/) and the [Documentation Pages](https://quantifyinggerrymandering.pages.oit.duke.edu/codedoc/).
+A brief tutorial on using CycleWalk.jl, AtlasIO.jl, and the Atlas file format can be found in the Quantifying Gerrymandering [Documentation Pages](https://duke.is/QGDoc). See also the arXiv paper [A Cycle Walk for Sampling Measures on Spanning Forests for Redistricting](https://arxiv.org/abs/2509.08629). More general information about the Quantifying Gerrymandering group can be found at the group's [Quantifying Gerrymandering Blog](https://duke.is/QGBlog) and the [Documentation Pages](https://duke.is/QGDoc).
 
 
 ## Metropolized Cycle Walk Algorithm
@@ -35,7 +35,7 @@ This can be done from the commandline in a terminal with
 julia -e 'using Pkg; Pkg.add("CycleWalk")'
 ```
 
-The most update directions can be found at [duke.is/cyclewalk](https://quantifyinggerrymandering.pages.oit.duke.edu/codedoc/cycleWalk.html). Those pages contain many examples and a basic introduction to using the Cycle Walk library.
+The most update directions can be found at [duke.is/cyclewalk](https://duke.is/CycleWalk). Those pages contain many examples and a basic introduction to using the Cycle Walk library.
 
 ## Example Scripts from the Git Repo
 
