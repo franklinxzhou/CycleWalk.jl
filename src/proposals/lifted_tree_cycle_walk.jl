@@ -121,18 +121,20 @@ function get_collapsed_cycle_weights_topo(
 end
 
 # assumes other cut is at end and 1
+# `pre` holds prefix sums: pre[i+1] == sum(cycle_weights[1:i]), pre[1] == 0, so
+# sum(cycle_weights[a:b]) == pre[b+1] - pre[a].
 function find_first_valid_cut(
-    cycle_weights::Vector, 
-    initial_cut_index::Int, 
-    min_pop::Real, 
-    max_pop::Real,
-    totpop_uv::Real
+    pre::Vector{Float64},
+    initial_cut_index::Int,
+    min_pop::Float64,
+    max_pop::Float64,
+    totpop_uv::Float64
 )
     first_valid_cut = initial_cut_index
     while first_valid_cut > 1
         first_valid_cut -= 1
         @assert first_valid_cut > 0
-        pop1 = sum(@view cycle_weights[1:first_valid_cut])
+        pop1 = pre[first_valid_cut + 1]          # sum(1:first_valid_cut)
         pop2 = totpop_uv - pop1
         if !(min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop)
             first_valid_cut += 1
@@ -143,25 +145,37 @@ function find_first_valid_cut(
 end
 
 function find_cuttable_edge_pairs(
-    cycle_weights::Vector{U}, 
+    cycle_weights::Vector{U},
     initial_cut_index::Int,
     partition::LinkCutPartition,
     constraints::Constraints
 ) where U <: Real
     path_length = length(cycle_weights)
-    totpop_uv = sum(cycle_weights)
-    min_pop = constraints.population_constraint.min_pop
-    max_pop = constraints.population_constraint.max_pop
+    # Prefix sums so each segment population is an O(1) difference, instead of an
+    # O(path) `sum(@view ...)` recomputed for every (cut1,cut2) pair (which was
+    # O(path^3) and boxed a Float64 each time). For integer populations stored as
+    # Float64 the prefix difference is bit-identical to the view sum.
+    pre = Vector{Float64}(undef, path_length + 1)
+    pre[1] = 0.0
+    @inbounds for i in 1:path_length
+        pre[i + 1] = pre[i] + cycle_weights[i]
+    end
+    totpop_uv = pre[path_length + 1]
+    # concrete Float64 locals: the constraint's min_pop/max_pop fields are
+    # abstract `Real`, which would make every `min_pop <= pop1` a dynamic call
+    # that boxes pop1. For integer bounds the Float64 value is identical.
+    min_pop::Float64 = constraints.population_constraint.min_pop
+    max_pop::Float64 = constraints.population_constraint.max_pop
     possible_pairs = Set{Tuple{Int,Int}}()
 
     ### find valid cut with smallest index when paired with u1,v1
-    first_valid_cut = find_first_valid_cut(cycle_weights, initial_cut_index, 
+    first_valid_cut = find_first_valid_cut(pre, initial_cut_index,
                                            min_pop, max_pop, totpop_uv)
 
     for cut1 = 1:path_length
         found_cut = false
         for cut2 = max(cut1, first_valid_cut):path_length-1
-            pop1 = sum(@view cycle_weights[cut1:cut2])
+            pop1 = pre[cut2 + 1] - pre[cut1]      # sum(cut1:cut2)
             pop2 = totpop_uv - pop1
             if min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop
                 # @show "adding", cut1, cut2, pop1, pop2
