@@ -25,6 +25,8 @@ using LinkCutTreesAugmented:
     find_root!,
     expose!,
     path_children,
+    cc,
+    nv_cc,
     get_connected_edge_list,
     parents,
     findPath,

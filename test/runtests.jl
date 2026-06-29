@@ -56,6 +56,7 @@ small_square_graph = MultiLevelGraph(small_square_base_graph, ["pct"])
 
 
 include(joinpath(testdir, "test_linkcuttree.jl"))
+include(joinpath(testdir, "test_option_b.jl"))
 include(joinpath(testdir, "test_docs_coverage.jl"))
 
 tests = [
