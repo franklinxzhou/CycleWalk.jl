@@ -14,7 +14,9 @@ function BalanceData(partition::LinkCutPartition)
     pop_col = partition.graph.pop_col
     for ni in 1:partition.graph.num_nodes
         di = partition.node_to_dist[ni]
-        dist_pops[di] += partition.graph.node_attributes[ni][pop_col]
+        # typed local keeps the `Any` node_attributes read from boxing the add
+        pop::Float64 = partition.graph.node_attributes[ni][pop_col]
+        dist_pops[di] += pop
     end
 
     return BalanceData(identifier, update_identifier, dist_pops,
@@ -39,7 +41,8 @@ function update_balance_data!(
     for ni in 1:partition.graph.num_nodes
         di = partition.node_to_dist_update[ni]
         if di in changed_districts
-            data.dist_pops_update[di] += node_attr[ni][pop_col]
+            pop::Float64 = node_attr[ni][pop_col]
+            data.dist_pops_update[di] += pop
         end
     end
 end

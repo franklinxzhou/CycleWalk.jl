@@ -213,19 +213,19 @@ end
 
 
 function topological_sort!(
-    cut_remainder::Dict{Int, Real}, 
-    node::Union{Node, Nothing}, 
+    cut_remainder::Dict{Int, Float64},
+    node::Union{Node, Nothing},
     source::Node,
     partition::LinkCutPartition,
     field::Union{Nothing,String},
     reversed::Bool=false,
-    mass::Real=0,
+    mass::Float64=0.0,
 )
     if node === nothing
-        return 0
+        return 0.0
     end
 
-    remainder = 0
+    remainder = 0.0
     reversed ⊻= node.reversed
     if !reversed; lc,rc = 1,2; else lc,rc=2,1 end
     remainder += topological_sort!(cut_remainder, node.children[rc], node, 
@@ -235,10 +235,12 @@ function topological_sort!(
     end
     
     index = node.vertex
-    node_val = 1 # if nothing, just count nodes
+    # typed local: the `node_attributes` read is `Any`, so assert Float64 to keep
+    # inference concrete and avoid boxing the result and everything downstream.
+    node_val::Float64 = 1.0 # if nothing, just count nodes
     if field !== nothing
         node_val = partition.graph.node_attributes[index][field]
-    end 
+    end
     cut_remainder[index] = remainder + node_val + mass
 
     if source != node.children[lc]
@@ -251,7 +253,7 @@ end
 
 function topological_sort(root::Node, partition::LinkCutPartition; 
                           field::Union{Nothing,String}=partition.graph.pop_col)
-    cut_remainder = Dict{Int,Real}()
+    cut_remainder = Dict{Int,Float64}()
     evert!(root)
     if !root.reversed; lc,rc = 1,2; else lc,rc=2,1 end
 
@@ -266,7 +268,7 @@ function topological_sort(root::Node, partition::LinkCutPartition;
     for n in path_children(root)
         total += topological_sort!(cut_remainder, n, root, partition, field)
     end
-    root_pop = 1 # if field === nothing, just count number of nodes
+    root_pop::Float64 = 1.0 # if field === nothing, just count number of nodes
     if field !== nothing
         root_pop = partition.graph.node_attributes[root.vertex][field]
     end
