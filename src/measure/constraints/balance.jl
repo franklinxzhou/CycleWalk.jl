@@ -11,12 +11,10 @@ function BalanceData(partition::LinkCutPartition)
     dist_pops = zeros(Float64, partition.num_dists)
     dist_pops_update = zeros(Float64, partition.num_dists)
 
-    pop_col = partition.graph.pop_col
+    node_pops = partition.node_pops          # cached concrete Float64 populations
     for ni in 1:partition.graph.num_nodes
         di = partition.node_to_dist[ni]
-        # typed local keeps the `Any` node_attributes read from boxing the add
-        pop::Float64 = partition.graph.node_attributes[ni][pop_col]
-        dist_pops[di] += pop
+        dist_pops[di] += node_pops[ni]
     end
 
     return BalanceData(identifier, update_identifier, dist_pops,
@@ -29,7 +27,7 @@ function update_balance_data!(
     update::Update
 )
     data.update_identifier = copy(update.identifier)
-    node_attr = partition.graph.node_attributes
+    node_pops = partition.node_pops          # cached concrete Float64 populations
 
     changed_districts = collect(update.changed_districts)
     data.dist_pops_update .= data.dist_pops
@@ -37,12 +35,10 @@ function update_balance_data!(
         data.dist_pops_update[di] = 0.0
     end
 
-    pop_col = partition.graph.pop_col
     for ni in 1:partition.graph.num_nodes
         di = partition.node_to_dist_update[ni]
         if di in changed_districts
-            pop::Float64 = node_attr[ni][pop_col]
-            data.dist_pops_update[di] += pop
+            data.dist_pops_update[di] += node_pops[ni]
         end
     end
 end

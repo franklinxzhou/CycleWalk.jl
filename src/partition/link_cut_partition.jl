@@ -10,6 +10,7 @@ mutable struct LinkCutPartition <: AbstractPartition
     lct::LinkCutTree
     node_col::String
     graph::BaseGraph
+    node_pops::Vector{Float64}   # cached graph.node_attributes[ni][pop_col], concrete
     identifier::Int64
     # update_identifier::Int64
 end
@@ -55,7 +56,7 @@ function LinkCutPartition(
                            district_roots, roots_to_district, energy_data,
                            node_to_dist, node_to_dist_update, lct,
                            partition.graph.levels[1], base_graph,
-                           identifier)#, identifier)
+                           pops, identifier)#, identifier)
     assign_district_map!(lcp)
     find_cross_district_edges!(lcp)
     return lcp
