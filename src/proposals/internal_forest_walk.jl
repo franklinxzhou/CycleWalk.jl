@@ -26,7 +26,7 @@ end
 
 function getCummulativePathWeight(
     partition::LinkCutPartition, 
-    path::Vector{Node},
+    path::Vector{<:Node},
     link::Tuple{Node, Node}
 )
     pathWeights = Float64[0]

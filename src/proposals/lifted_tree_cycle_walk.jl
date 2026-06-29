@@ -40,8 +40,8 @@ function get_paths!(partition::LinkCutPartition, edge_pair::Tuple)
 end
 
 function get_collapsed_cycle_weights(
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}, 
+    uPath::Vector{<:Node}, 
+    vPath::Vector{<:Node}, 
     partition::LinkCutPartition;
     field=partition.graph.pop_col
 )::Vector{Float64}
@@ -135,8 +135,8 @@ end
 
 function get_node_indices_from_paths(
     edge_ind::Int, 
-    uPath::Vector{Node},
-    vPath::Vector{Node}
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node}
 )
     if edge_ind==1 
         return (uPath[end], vPath[end])
@@ -308,8 +308,8 @@ end
 
 function get_link_path_ind(
     link_ind::T, 
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}
+    uPath::Vector{<:Node}, 
+    vPath::Vector{<:Node}
 )::T where T <: Int
     if uPath[end].vertex == link_ind
         return 1
@@ -327,8 +327,8 @@ end
 function swap_assignment_check(
     path_ind::T, 
     edge_inds::Tuple{T,T}, 
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}, 
+    uPath::Vector{<:Node}, 
+    vPath::Vector{<:Node}, 
     cycle_weights::Vector{Float64}
 )::Bool where T <: Int
     # edge_inds interval assigned to u district?
