@@ -188,8 +188,10 @@ function assign_district_map!(
                     push!(queue, node.children[ii])
                 end
             end
-            for n in path_children(node)
-                push!(queue, n)
+            c = first_path_child(node)
+            while c !== nothing
+                push!(queue, c)
+                c = next_path_sibling(c)
             end
         end
     end
@@ -210,8 +212,10 @@ function sum_cc(
             sum += sum_cc(node.children[ii], partition, field, false)
         end
     end
-    for n in path_children(node)
-        sum += sum_cc(n, partition, field, false)
+    c = first_path_child(node)
+    while c !== nothing
+        sum += sum_cc(c, partition, field, false)
+        c = next_path_sibling(c)
     end
     return sum
 end
@@ -235,10 +239,12 @@ function topological_sort!(
     if !reversed; lc,rc = 1,2; else lc,rc=2,1 end
     remainder += topological_sort!(cut_remainder, node.children[rc], node, 
                                    partition, field, reversed, mass)
-    for n in path_children(node)
-        remainder += topological_sort!(cut_remainder, n, node, partition, field)
+    c = first_path_child(node)
+    while c !== nothing
+        remainder += topological_sort!(cut_remainder, c, node, partition, field)
+        c = next_path_sibling(c)
     end
-    
+
     index = node.vertex
     # typed local: the `node_attributes` read is `Any`, so assert Float64 to keep
     # inference concrete and avoid boxing the result and everything downstream.
@@ -270,8 +276,10 @@ function topological_sort(root::Node, partition::LinkCutPartition;
     total = topological_sort!(cut_remainder, root.children[rc], root, 
                               partition, field, root.reversed)
 
-    for n in path_children(root)
-        total += topological_sort!(cut_remainder, n, root, partition, field)
+    c = first_path_child(root)
+    while c !== nothing
+        total += topological_sort!(cut_remainder, c, root, partition, field)
+        c = next_path_sibling(c)
     end
     root_pop::Float64 = 1.0 # if field === nothing, just count number of nodes
     if field !== nothing
