@@ -16,6 +16,8 @@ using LinkCutTreesAugmented:
     Node,
     LinkCutTree,
     link_cut_tree,
+    pop_link_cut_tree,
+    subtree_pop,
     link!,
     cut!,
     evert!,

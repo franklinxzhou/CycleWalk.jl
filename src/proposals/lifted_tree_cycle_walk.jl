@@ -40,8 +40,57 @@ function get_paths!(partition::LinkCutPartition, edge_pair::Tuple)
 end
 
 function get_collapsed_cycle_weights(
-    uPath::Vector{<:Node}, 
-    vPath::Vector{<:Node}, 
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
+    partition::LinkCutPartition;
+    field=partition.graph.pop_col
+)::Vector{Float64}
+    # Population path (the hot case): query the maintained PopAug subtree sums
+    # directly -- O(log n) per path vertex, no per-call Dict. Other fields (e.g.
+    # `field=nothing` node counts, used by diagnostics) fall back to the
+    # whole-tree topological_sort.
+    if field == partition.graph.pop_col
+        return get_collapsed_cycle_weights_subpop(uPath, vPath, partition)
+    end
+    return get_collapsed_cycle_weights_topo(uPath, vPath, partition; field=field)
+end
+
+# Subtree-population version. The cut-population of a path vertex is its subtree
+# population when the tree is rooted at the arm's base (u1 / v1); the collapsed
+# weight of each segment is the difference of adjacent cut-populations.
+function get_collapsed_cycle_weights_subpop(
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
+    partition::LinkCutPartition,
+)::Vector{Float64}
+    lct = partition.lct
+    u1 = lct.nodes[uPath[1].vertex]
+    v1 = lct.nodes[vPath[1].vertex]
+    path_length = length(uPath) + length(vPath)
+    collapsed_cycle_weight = Vector{Float64}(undef, path_length)
+
+    evert!(u1)                       # root the cycle's u-arm at u1
+    prev = 0.0
+    for ii = 1:length(uPath)
+        # uPath reversed: position ii corresponds to uPath[end-ii+1]
+        cur = subtree_pop(lct.nodes[uPath[end-ii+1].vertex])
+        collapsed_cycle_weight[ii] = ii == 1 ? cur : cur - prev
+        prev = cur
+    end
+
+    evert!(v1)                       # root the v-arm at v1
+    prev = 0.0
+    for ii = 0:(length(vPath)-1)
+        cur = subtree_pop(lct.nodes[vPath[end-ii].vertex])
+        collapsed_cycle_weight[end-ii] = ii == 0 ? cur : cur - prev
+        prev = cur
+    end
+    return collapsed_cycle_weight
+end
+
+function get_collapsed_cycle_weights_topo(
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
     partition::LinkCutPartition;
     field=partition.graph.pop_col
 )::Vector{Float64}
@@ -51,8 +100,6 @@ function get_collapsed_cycle_weights(
     u_cut_pop_dict = topological_sort(u1, partition; field=field)
     v_cut_pop_dict = topological_sort(v1, partition; field=field)
     path_length = length(uPath) + length(vPath)
-    # @show u_cut_pop_dict
-    # @show v_cut_pop_dict
     collapsed_cycle_weight = Vector{Float64}(undef, path_length)
     for ii = 1:length(uPath_rev)
         vertex = uPath_rev[ii].vertex

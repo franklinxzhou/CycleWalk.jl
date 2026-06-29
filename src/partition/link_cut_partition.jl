@@ -37,7 +37,12 @@ function LinkCutPartition(
         edges = [edges; tree_edges]
     end
 
-    lct = link_cut_tree(base_graph.simple_graph, edges)
+    # PopAug tree: carries per-node population so subtree populations are
+    # maintained incrementally (see get_collapsed_cycle_weights / subtree_pop).
+    pop_col = base_graph.pop_col
+    pops = Float64[Float64(base_graph.node_attributes[ni][pop_col])
+                   for ni in 1:base_graph.num_nodes]
+    lct = pop_link_cut_tree(base_graph.simple_graph, edges, pops)
     district_roots, roots_to_district = get_district_roots(lct)
     @assert length(district_roots) == partition.num_dists
 
