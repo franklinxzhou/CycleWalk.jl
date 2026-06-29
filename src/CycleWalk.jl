@@ -12,6 +12,22 @@ using Hungarian
 import Combinatorics
 using Dates
 using AtlasIO
+using LinkCutTreesAugmented:
+    Node,
+    LinkCutTree,
+    link_cut_tree,
+    link!,
+    cut!,
+    evert!,
+    set_root!,
+    find_root!,
+    expose!,
+    path_children,
+    get_connected_edge_list,
+    parents,
+    findPath,
+    get_diameter,
+    get_farthest_node
 import MetropolizedForestRecom:
     initialize_constraints as mfr_initialize_constraints,
     add_constraint! as mfr_add_constraint!,
@@ -152,8 +168,7 @@ include("./utilities/array_utils.jl")
 include("./graph/graph.jl")
 include("./trees/neighbor_list_tree.jl")
 include("./trees/tree.jl")
-include("./trees/splaytrees.jl")
-include("./trees/linkcuttrees.jl")
+include("./trees/tree_metrics.jl")
 include("./trees/russo_ust.jl")
 
 # type defs

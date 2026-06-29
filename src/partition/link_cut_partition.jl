@@ -183,7 +183,7 @@ function assign_district_map!(
                     push!(queue, node.children[ii])
                 end
             end
-            for n in node.pathChildren
+            for n in path_children(node)
                 push!(queue, n)
             end
         end
@@ -205,7 +205,7 @@ function sum_cc(
             sum += sum_cc(node.children[ii], partition, field, false)
         end
     end
-    for n in node.pathChildren
+    for n in path_children(node)
         sum += sum_cc(n, partition, field, false)
     end
     return sum
@@ -230,7 +230,7 @@ function topological_sort!(
     if !reversed; lc,rc = 1,2; else lc,rc=2,1 end
     remainder += topological_sort!(cut_remainder, node.children[rc], node, 
                                    partition, field, reversed, mass)
-    for n in node.pathChildren
+    for n in path_children(node)
         remainder += topological_sort!(cut_remainder, n, node, partition, field)
     end
     
@@ -263,7 +263,7 @@ function topological_sort(root::Node, partition::LinkCutPartition;
     total = topological_sort!(cut_remainder, root.children[rc], root, 
                               partition, field, root.reversed)
 
-    for n in root.pathChildren
+    for n in path_children(root)
         total += topological_sort!(cut_remainder, n, root, partition, field)
     end
     root_pop = 1 # if field === nothing, just count number of nodes
