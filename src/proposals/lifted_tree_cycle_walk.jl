@@ -144,6 +144,22 @@ function find_first_valid_cut(
     return first_valid_cut
 end
 
+"""
+    find_cuttable_edge_pairs(cycle_weights, initial_cut_index, partition, constraints)
+
+Return the set of `(cut1, cut2)` index pairs whose two induced segments are each
+population-balanced within the constraint's `[min_pop, max_pop]`, excluding the
+current cut `(1, initial_cut_index)`.
+
+PRECONDITION: `initial_cut_index` must itself be a balanced single cut, i.e. both
+`sum(cycle_weights[1:initial_cut_index])` and its complement lie in
+`[min_pop, max_pop]`. In production this always holds because `initial_cut_index`
+is the current district boundary (`length(uPath)`), which satisfies the population
+constraint. `find_first_valid_cut` walks *down* from `initial_cut_index` while the
+single cut stays valid; if the initial index is itself unbalanced the walk stops
+immediately and the search silently under-returns valid pairs. Callers feeding a
+synthetic index (e.g. tests) must respect this.
+"""
 function find_cuttable_edge_pairs(
     cycle_weights::Vector{U},
     initial_cut_index::Int,
