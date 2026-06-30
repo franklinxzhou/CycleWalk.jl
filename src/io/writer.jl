@@ -2,6 +2,16 @@
 AtlasParam=Dict{String, Any}
 MapParam=Dict{String, Any}
 
+"""
+    Writer
+
+Serializes accepted plans and per-step data to an
+[Atlas](https://github.com/jonmjonm/AtlasIO.jl) file. `atlas` is the open output
+handle; `map_output_data` maps each registered observable's description to its getter
+(see [`push_writer!`](@ref)); `map_param` buffers the current step's observable
+values; `output_districting` selects whether each map records the full node→district
+assignment; `node_map`/`node_field` describe how nodes are keyed in the output.
+"""
 mutable struct Writer
     atlas::Atlas{AtlasParam}
     map_param::MapParam
@@ -11,6 +21,17 @@ mutable struct Writer
     node_field::String
 end
 
+"""
+    Writer(measure, constraints, partition, output_file_path; output_districting=true,
+           description="", time_stamp=string(Dates.now()), io_mode="w",
+           additional_parameters=Dict{String,Any}())
+
+Open `output_file_path` (`.jsonl` or `.jsonl.gz`) and write the Atlas header,
+recording the measure's energies and weights, the population bounds and constraint
+descriptions, the CycleWalk package version, and any `additional_parameters`. Creates
+the output directory if needed. Register observables with [`push_writer!`](@ref) and
+close with [`close_writer`](@ref).
+"""
 function Writer(
     measure::Measure,
     constraints::Constraints,
@@ -72,9 +93,15 @@ function Writer(
                   node_map, partition.node_col)#, proposal_diagnostics)
 end
 
+"""
+    push_writer!(writer, get_data; desc=nothing)
+
+Register a per-step observable `get_data(partition)` whose value is written into each
+output map under the key `desc` (defaulting to the function's name).
+"""
 function push_writer!(
     writer::Writer,
-    get_data::Function; 
+    get_data::Function;
     desc::Union{String, Nothing}=nothing
 )
     if desc == nothing
@@ -83,12 +110,23 @@ function push_writer!(
     writer.map_output_data[desc] = get_data
 end
 
+"""
+    close_writer(writer)
+
+Flush and close the underlying Atlas file. Call once after the run finishes.
+"""
 function close_writer(writer::Writer)
     close(writer.atlas.io)
 end
 
+"""
+    get_node_map(node_field, partition, node_map=nothing)
+
+Build (or refill) a map from each node's `node_field` key to its current district
+index, over all base nodes of `partition`. Reuses `node_map` if provided.
+"""
 function get_node_map(
-    node_field::String, 
+    node_field::String,
     partition::LinkCutPartition,
     node_map::Union{Nothing, Dict{Tuple{Vararg{String}}, Int}} = nothing
 )
@@ -105,14 +143,27 @@ function get_node_map(
 end
 
 
+"""
+    get_node_map!(writer, partition)
+
+Refresh the writer's node→district map in place from the current `partition` and
+return it.
+"""
 function get_node_map!(
-    writer::Writer, 
+    writer::Writer,
     partition::LinkCutPartition
 )
     return get_node_map(writer.node_field, partition, writer.node_map)
 end
 
-""""""
+"""
+    output(partition, measure, step, count, writer, run_diagnostics=RunDiagnostics())
+
+Write one Atlas map for the current `partition`: evaluate every registered observable
+and diagnostic into the map's parameters, attach the node→district assignment (unless
+`output_districting` is false), append the map to the Atlas, and reset the
+diagnostics. No-op if `writer === nothing`.
+"""
 function output(
     partition::LinkCutPartition,
     measure::Measure,

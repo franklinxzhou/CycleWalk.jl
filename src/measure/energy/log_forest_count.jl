@@ -1,9 +1,24 @@
+"""
+    LogForestEnergyData <: AbstractEnergyData
+
+Cache backing the spanning-forest energy. Holds the current per-district log
+spanning-tree counts (`log_trees`), a scratch buffer for the proposed values
+(`log_trees_update`, with `-1.0` marking "not yet computed"), and the partition
+`identifier` the cache was last synced to.
+"""
 mutable struct LogForestEnergyData <: AbstractEnergyData
     identifier::Int64
     log_trees::Vector{Float64}
     log_trees_update::Vector{Float64}
 end
 
+"""
+    LogForestEnergyData(partition)
+
+Allocate an empty [`LogForestEnergyData`](@ref) for `partition`, sized to its number
+of districts. The stored identifier is set one behind the partition's so the counts
+are recomputed on first use.
+"""
 function LogForestEnergyData(partition::LinkCutPartition)
     identifier = partition.identifier - 1
     log_trees = Vector{Float64}(undef, partition.num_dists)
@@ -12,6 +27,12 @@ function LogForestEnergyData(partition::LinkCutPartition)
     return LogForestEnergyData(identifier, log_trees, log_trees_update)
 end
 
+"""
+    get_log_spanning_trees(node_to_dist, simple_graph, di)::Float64
+
+Low-level kernel: the log number of spanning trees of district `di`, computed on the
+subgraph of `simple_graph` induced by the nodes assigned to `di` in `node_to_dist`.
+"""
 function get_log_spanning_trees(
     node_to_dist::Vector{Int64},
     simple_graph::SimpleWeightedGraph,
@@ -22,7 +43,14 @@ function get_log_spanning_trees(
     return log_nspanning(sg)
 end
 
-""""""
+"""
+    get_log_spanning_trees(partition, districts=...; update=nothing)::Vector{Float64}
+
+Return the log spanning-tree count of each district in `districts`, using the cached
+[`LogForestEnergyData`](@ref). With `update === nothing` the current partition is
+scored (recomputing all districts only when the cache is stale); with an `update`
+the proposed assignment (`node_to_dist_update`) is scored for the changed districts.
+"""
 function get_log_spanning_trees(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
@@ -65,7 +93,13 @@ function get_log_spanning_trees(
     return log_spanning_trees
 end
 
-""""""
+"""
+    get_log_spanning_forests(partition, districts=...; update=nothing)::Float64
+
+Sum of [`get_log_spanning_trees`](@ref) over `districts` — the log number of spanning
+forests of the plan. This is the spanning-forest energy: push it onto a `Measure`
+with weight γ (γ=0 gives the spanning-forest measure, γ=1 the partition measure).
+"""
 function get_log_spanning_forests(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
@@ -75,6 +109,14 @@ function get_log_spanning_forests(
     return sum(get_log_spanning_trees(partition, districts, update=update))
 end
 
+"""
+    update_energy_data!(eData::LogForestEnergyData, partition, update)
+
+Commit the accepted `update` into the spanning-forest cache: copy the proposed log
+counts for the changed districts into `log_trees` and reset their scratch slots. If
+any proposed value was never computed (still `-1.0`), the scratch buffer is fully
+invalidated so the counts are recomputed on next query.
+"""
 function update_energy_data!(
     eData::LogForestEnergyData,
     partition::LinkCutPartition,

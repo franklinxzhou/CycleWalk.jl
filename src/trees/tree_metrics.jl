@@ -5,6 +5,13 @@
 # LinkCutTreesAugmented package. The link-cut-tree data structure and its
 # traversals now come from LinkCutTreesAugmented (see CycleWalk.jl `using`).
 
+"""
+    get_neighbor_list(edgeList)
+
+Build an adjacency (neighbor) list from a vector of undirected `Edge`s, returned as
+a `Dict` mapping each vertex to a vector of its neighbors. Both endpoints of every
+edge are recorded, so the result represents the edge list as an undirected graph.
+"""
 function get_neighbor_list(edgeList::Vector{Edge})
     g=Dict()
     for e in edgeList
@@ -20,6 +27,12 @@ function get_neighbor_list(edgeList::Vector{Edge})
     return g
 end
 
+"""
+    get_neighbor_lists(edgeListVector)
+
+Broadcast [`get_neighbor_list`](@ref) over a vector of edge lists (e.g. one per
+district), returning the vector of corresponding neighbor-list `Dict`s.
+"""
 function get_neighbor_lists(edgeListVector::Vector{Vector{E}}) where E<:Edge
     graphList=get_neighbor_list.(edgeListVector)
     return graphList
@@ -158,6 +171,15 @@ function get_tree_centers_and_leaves(edgeList::Vector{E};
 end
 
 
+"""
+    get_center_moment(edgeList; p=1)
+
+Compute the `Lᵖ` moment of the distances from the tree's center to *all* of its
+vertices. The tree's center (one or two vertices) is found by iteratively peeling
+leaves; for each vertex the distances from every center are averaged, raised to the
+`p`-th power and averaged over vertices, and the `p`-th root is returned. Larger
+values indicate a more elongated/less compact tree.
+"""
 function get_center_moment(edgeList::Vector{E};p=1) where E<:Edge
 
     centers,leaves,distances=get_tree_centers_and_leaves(edgeList,distances=true)
@@ -176,6 +198,13 @@ function get_center_moment(edgeList::Vector{E};p=1) where E<:Edge
     return (total_distance/length(distances[1]))^(1.0/p)
 end
 
+"""
+    get_center_leaves_moment(edgeList; p=1)
+
+Like [`get_center_moment`](@ref), but takes the `Lᵖ` moment of the center-to-vertex
+distances over only the tree's *leaves* (degree-one vertices) rather than all
+vertices.
+"""
 function get_center_leaves_moment(edgeList::Vector{E};p=1) where E<:Edge
 
     centers,leaves,distances=get_tree_centers_and_leaves(edgeList,distances=true)

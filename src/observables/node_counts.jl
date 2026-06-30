@@ -1,3 +1,10 @@
+"""
+    get_node_counts(partition::MultiLevelPartition, districts=...)
+
+Return the number of base (finest-level) nodes in each district of a
+`MultiLevelPartition`. Asserts the per-district counts sum to the graph's total node
+count.
+"""
 function get_node_counts(
     partition::MultiLevelPartition,
     districts::Vector{Int} = collect(1:partition.num_dists)
@@ -13,10 +20,17 @@ function get_node_counts(
 end
 
 
-""""""
+"""
+    get_node_count(graph::MultiLevelGraph, node_set, level=1)
+
+Count the base nodes contained in `node_set` for a `MultiLevelGraph`, recursing
+through the level hierarchy: a coarse node that is intact contributes all of its
+fine-level descendants, while a split node is descended into. Used by
+[`get_node_counts`](@ref).
+"""
 function get_node_count(
     graph::MultiLevelGraph,
-    node_set::Dict{Tuple{Vararg{String}}, Any}, 
+    node_set::Dict{Tuple{Vararg{String}}, Any},
     level::Int=1
 )
     count = 0

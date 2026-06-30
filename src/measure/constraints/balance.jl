@@ -1,3 +1,12 @@
+"""
+    BalanceData <: AbstractEnergyData
+
+Cache of each district's total population, used to check the population
+(balance) constraint incrementally. `dist_pops` is the current per-district
+population and `dist_pops_update` the proposed values; `identifier` /
+`update_identifier` track which partition state and which proposed update the two
+buffers correspond to.
+"""
 mutable struct BalanceData <: AbstractEnergyData
     identifier::Int64
     update_identifier::Vector{Int64}
@@ -5,6 +14,12 @@ mutable struct BalanceData <: AbstractEnergyData
     dist_pops_update::Vector{Float64}
 end
 
+"""
+    BalanceData(partition)
+
+Build a [`BalanceData`](@ref) for `partition`, computing each district's total
+population from scratch by summing the cached per-node populations.
+"""
 function BalanceData(partition::LinkCutPartition)
     identifier = partition.identifier
     update_identifier = Vector{Int64}(undef, 0)
@@ -21,6 +36,14 @@ function BalanceData(partition::LinkCutPartition)
                        dist_pops_update)
 end
 
+"""
+    update_balance_data!(data, partition, update)
+
+Recompute `data.dist_pops_update` for the proposed plan: copy the current district
+populations, then re-sum the populations of the changed districts from the proposed
+assignment (`node_to_dist_update`). Records `update.identifier` so the proposed
+buffer is not recomputed for the same update.
+"""
 function update_balance_data!(
     data::BalanceData,
     partition::LinkCutPartition,
@@ -43,10 +66,18 @@ function update_balance_data!(
     end
 end
 
+"""
+    satisfies_constraint(partition, population_constraint, districts=...; update=nothing)::Bool
+
+Return whether every district in `districts` has population within
+`[min_pop, max_pop]`, using the cached [`BalanceData`](@ref) (rebuilt if stale, and
+extended with the proposed populations when `update` is given). With an `update`,
+only the changed districts are checked.
+"""
 function satisfies_constraint(
     partition::LinkCutPartition,
     population_constraint::PopulationConstraint,
-    districts::Union{Tuple{Vararg{T}}, Vector{T}} 
+    districts::Union{Tuple{Vararg{T}}, Vector{T}}
         = collect(1:partition.num_dists);
     update::Union{Update, Nothing}=nothing
 )::Bool where T<:Int
@@ -74,6 +105,12 @@ function satisfies_constraint(
                                 active_districts)
 end
 
+"""
+    satisfies_constraint(pop_constraint, dist_pops, districts)::Bool
+
+Low-level check: return `true` if `dist_pops[di]` lies within the constraint's
+`[min_pop, max_pop]` for every `di` in `districts`.
+"""
 function satisfies_constraint(
     pop_constraint::PopulationConstraint,
     dist_pops::Vector{Float64},
@@ -88,6 +125,12 @@ function satisfies_constraint(
     return true
 end
 
+"""
+    update_energy_data!(data::BalanceData, partition, update)
+
+Commit the accepted `update` into the population cache: copy the proposed populations
+of the changed districts into `dist_pops` and sync the identifier.
+"""
 function update_energy_data!(
     data::BalanceData,
     partition::LinkCutPartition,

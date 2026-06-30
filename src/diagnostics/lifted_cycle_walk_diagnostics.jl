@@ -1,4 +1,13 @@
-""""""
+"""
+    gather_lifted_cycle_walk_diagnostics!(diagnostics; accept_ratio=0, kwargs...)
+
+Dispatch the per-step data of one [`lifted_tree_cycle_walk!`](@ref) proposal to
+whichever diagnostics are registered in `diagnostics`. Each registered diagnostic
+type (acceptance ratio, cycle length, Δnodes, Δpopulation, cuttable-edge pairs,
+unique cuttable edges, swappable population) pulls the keyword data it needs (cycle
+weights, district/edge pairs, chosen cut indices, swap data, `uPath` length, the
+partition) and records its value. No-op if `diagnostics === nothing`.
+"""
 function gather_lifted_cycle_walk_diagnostics!(
     diagnostics::Union{ProposalDiagnostics, Nothing};
     accept_ratio::T=0,

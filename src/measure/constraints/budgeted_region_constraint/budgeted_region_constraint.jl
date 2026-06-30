@@ -1,3 +1,11 @@
+"""
+    satisfies_constraint(partition, brc::BudgetedRegionConstraint, districts=...; update=nothing)::Bool
+
+Check the [`BudgetedRegionConstraint`](@ref) against `partition` (or the plan implied
+by `update`), using the cached [`RegionalSplitData`](@ref) region↔district maps
+(rebuilt if stale, extended for a proposed `update`) before delegating to the
+low-level method.
+"""
 function satisfies_constraint(
     partition::LinkCutPartition,
     brc::BudgetedRegionConstraint,
@@ -39,6 +47,15 @@ function satisfies_constraint(
     )
 end
 
+"""
+    satisfies_constraint(brc::BudgetedRegionConstraint, districts, regions_to_dists, dists_to_regions)::Bool
+
+Low-level budgeted check from the region↔district maps. Accumulates the total *pack
+shortfall* (required minus achieved exclusive packed districts) and *cap excess*
+(districts touching a region beyond its cap) across regions; the constraint holds iff
+the pack shortfall stays within `pack_budget`, the cap excess within `cap_budget`, and
+their sum within `total_budget`. Returns early as soon as any budget is exceeded.
+"""
 function satisfies_constraint(
     brc::BudgetedRegionConstraint,
     districts::Union{Tuple{Vararg{T}}, Vector{T}},

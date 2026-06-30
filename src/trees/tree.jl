@@ -1,9 +1,19 @@
 """
-    self_avoiding_walk(g, s, niter, distmx=weights(g); seed=-1, rng=GLOBAL_RNG)
+    loop_erased_randomwalk(g, s, niter=10000*nv(g)^2, distmx=weights(g);
+                           f, walk_buff, rng=GLOBAL_RNG)
 
 Perform a [loop-erased random walk](https://en.wikipedia.org/wiki/Loop-erased_random_walk)
-on graph `g` starting at vertex `s` and continuing for a maximum of `niter` steps.
-Return a vector of vertices visited in order.
+on graph `g` starting at vertex `s`, stepping to a random neighbor proportional to
+the weights in `distmx` and erasing any loop the walk closes, until it reaches a
+vertex in the terminating set `f` (or after at most `niter` steps).
+
+The walk is written into the caller-supplied scratch buffer `walk_buff` (length
+`nv(g)`) and the return value is a `view` into that buffer holding the loop-erased
+path from `s` to the terminating vertex. Passing the buffer and the terminating
+`BitArray` `f` in lets `wilson_rst` reuse both across the many walks it performs.
+
+Throws an `ErrorException` if the terminating set is never reached, distinguishing
+the connected case (try a larger `niter`) from a disconnected graph.
 """
 function loop_erased_randomwalk(
     g::AG, s::Integer, 
@@ -108,7 +118,15 @@ function wilson_rst(g::SimpleWeightedGraph,
 end
 
 
-""""""
+"""
+    log_nspanning(g)::Float64
+
+Return the natural log of the number of spanning trees of `g`, computed via
+Kirchhoff's matrix-tree theorem as the log-determinant of any cofactor of the
+graph Laplacian (here the first row/column is deleted). For weighted graphs this
+is the log of the weighted spanning-tree count. Working in log space keeps the
+quantity finite for the large districts encountered during sampling.
+"""
 function log_nspanning(
     g::AG
 )::Float64 where {U, AG <: Graphs.AbstractGraph{U}}

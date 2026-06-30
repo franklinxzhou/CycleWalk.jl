@@ -1,7 +1,7 @@
 # Targets the optimizations merged in the last week:
 #   #3  prefix-sum cuttable-edge search (find_cuttable_edge_pairs / find_first_valid_cut)
 #   #2  cached per-node populations (partition.node_pops)
-#   #1/#2/#3 all claim "bit-identical determinism" -> a reproducibility regression.
+#   #12/#3 all claim "bit-identical determinism" -> a reproducibility regression.
 #
 # The prefix-sum rewrite changed *how* segment populations are summed (O(1) prefix
 # difference instead of an O(path) view-sum) but must return exactly the same set of

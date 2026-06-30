@@ -1,4 +1,12 @@
-""""""
+"""
+    get_log_linking_edges(partition, districts=...; update=nothing)::Float64
+
+Return `∑ log(boundary-weight-sum)` over all adjacent district pairs, where each pair
+contributes the log of the total weight of the edges crossing between them. When an
+`update` is supplied, pairs touching the changed districts are scored from the
+update's recomputed cross-district edges instead of the current ones. The `districts`
+argument is accepted for the common energy signature but the sum is over all pairs.
+"""
 function get_log_linking_edges(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
