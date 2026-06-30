@@ -1,3 +1,10 @@
+"""
+    IsoperimetricData <: AbstractEnergyData
+
+Cache backing the isoperimetric (Polsby–Popper) energy. Stores each district's
+`areas` and `perimeters`, their proposed-update scratch buffers (with `-1.0` marking
+"not yet computed"), and the partition `identifier` last synced to.
+"""
 mutable struct IsoperimetricData <: AbstractEnergyData
     identifier::Int64
     areas::Vector{Float64}
@@ -6,6 +13,13 @@ mutable struct IsoperimetricData <: AbstractEnergyData
     perimeters_update::Vector{Float64}
 end
 
+"""
+    IsoperimetricData(partition)
+
+Allocate an empty [`IsoperimetricData`](@ref) sized to `partition`'s districts, with
+the identifier set one behind the partition's so areas/perimeters are computed on
+first use.
+"""
 function IsoperimetricData(partition::LinkCutPartition)
     identifier = partition.identifier - 1
     areas = Vector{Float64}(undef, partition.num_dists)
@@ -17,6 +31,14 @@ function IsoperimetricData(partition::LinkCutPartition)
                              areas_update, perimeters_update)
 end
 
+"""
+    set_areas_and_perimeters!(partition)
+
+Recompute, from scratch, every district's area and perimeter into the
+[`IsoperimetricData`](@ref) cache for the *current* partition. Area is the sum of
+node areas; perimeter is the sum of node border lengths plus the perimeter
+contribution of each cross-district edge (counted for both incident districts).
+"""
 function set_areas_and_perimeters!(partition::LinkCutPartition)
 
     if !haskey(partition.energy_data, IsoperimetricData)
@@ -55,6 +77,14 @@ function set_areas_and_perimeters!(partition::LinkCutPartition)
     end
 end
 
+"""
+    set_areas_and_perimeters!(partition, di, update)
+
+Compute district `di`'s area and perimeter for the *proposed* partition into the
+update scratch buffers. If `di` is unchanged by `update`, its values are copied from
+the synced cache; otherwise they are recomputed from the proposed assignment
+(`node_to_dist_update`) and the update's recomputed cross-district edges.
+"""
 function set_areas_and_perimeters!(
     partition::LinkCutPartition,
     di::T,
@@ -102,7 +132,15 @@ function set_areas_and_perimeters!(
     end
 end
 
-""""""
+"""
+    get_isoperimetric_scores(partition, districts=...; update=nothing)::Vector{Float64}
+
+Return each district's isoperimetric ratio `perimeter² / area` (an inverse
+Polsby–Popper compactness score; larger means less compact), using the cached
+[`IsoperimetricData`](@ref). With `update === nothing` the current partition is
+scored (refreshing the cache if stale); with an `update` the proposed values are
+computed into the scratch buffers for the requested districts.
+"""
 function get_isoperimetric_scores(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
@@ -145,7 +183,18 @@ function get_isoperimetric_scores(
     return isos
 end
 
-""""""
+"""
+    get_isoperimetric_score(partition, districts=...; update=nothing, exponent=1.0,
+                            omit_least_compact=0, pow_on_sum=nothing)::Float64
+
+Summed isoperimetric energy: the sum over districts of `(perimeter²/area)^exponent`
+(see [`get_isoperimetric_scores`](@ref)). Push this onto a `Measure` to penalize
+non-compact plans.
+
+!!! note
+    The `omit_least_compact` and `pow_on_sum` keywords are currently accepted but not
+    applied (the corresponding logic is disabled); only `exponent` affects the result.
+"""
 function get_isoperimetric_score(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
@@ -168,6 +217,14 @@ function get_isoperimetric_score(
     return sum(isos)
 end
 
+"""
+    update_energy_data!(eData::IsoperimetricData, partition, update)
+
+Commit the accepted `update` into the isoperimetric cache: copy the proposed areas
+and perimeters for the changed districts into the synced fields and reset their
+scratch slots. If any proposed value was never computed, the scratch buffer is fully
+invalidated so values are recomputed on next query.
+"""
 function update_energy_data!(
     eData::IsoperimetricData,
     partition::LinkCutPartition,

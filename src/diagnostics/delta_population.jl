@@ -1,15 +1,31 @@
-""""""
+"""
+    DeltaPopDiagnostic <: AbstractProposalDiagnostics
+
+Per-proposal record of the population moved between districts by each proposed 2-tree
+cycle walk, stored as a fraction of the two districts' combined population. Backed by
+`data_vec`.
+"""
 struct DeltaPopDiagnostic <: AbstractProposalDiagnostics
     data_vec::Vector{Float64}
 end
 
-""""""
+"""
+    DeltaPopDiagnostic()
+
+Construct an empty [`DeltaPopDiagnostic`](@ref).
+"""
 function DeltaPopDiagnostic()
     data_vec = Vector{Float64}(undef, 0)
     return DeltaPopDiagnostic(data_vec)
 end
 
-""""""
+"""
+    push_delta_pop_diagnostic!(del_pop_diag, edge_inds, len_uPath, cycle_weights, swap_data)
+
+Compute and record the fraction of the cycle's total population that the proposed cut
+reassigns between the two districts (resolving the assignment swap from `swap_data`).
+Records `0` when the proposal carried no move (any of the inputs `nothing`).
+"""
 function push_delta_pop_diagnostic!(
     del_pop_diag::DeltaPopDiagnostic,
     edge_inds::Union{Nothing, Tuple}=nothing,
@@ -49,7 +65,11 @@ function push_delta_pop_diagnostic!(
     push!(del_pop_diag.data_vec, delta_pop/tot_pop)
 end
 
-""""""
+"""
+    reset_diagnostic!(del_pop_diag::DeltaPopDiagnostic)
+
+Clear the accumulated population-delta fractions.
+"""
 function reset_diagnostic!(del_pop_diag::DeltaPopDiagnostic)
     resize!(del_pop_diag.data_vec, 0)
 end

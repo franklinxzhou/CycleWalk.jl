@@ -11,6 +11,14 @@ Metropolized Cycle Walk outputs the samples into an [Atlas file](https://github.
 A brief tutorial on using CycleWalk.jl, AtlasIO.jl, and the Atlas file format can be found in the Quantifying Gerrymandering [Documentation Pages](https://duke.is/QGDoc). See also the arXiv paper [A Cycle Walk for Sampling Measures on Spanning Forests for Redistricting](https://arxiv.org/abs/2509.08629). More general information about the Quantifying Gerrymandering group can be found at the group's [Quantifying Gerrymandering Blog](https://duke.is/QGBlog) and the [Documentation Pages](https://duke.is/QGDoc).
 
 
+## API Reference
+
+A reference listing all of the public API calls, data structures, and types
+exported by `CycleWalk.jl` can be found in [`function_call.md`](./function_call.md).
+It groups the exported functions and types by their role in a typical run
+(building a graph and partition, defining constraints and a target measure,
+configuring proposals, running the sampler, and writing output).
+
 ## Metropolized Cycle Walk Algorithm
 
 The basic Cycle Walk produces $d$-tree spanning forests where each of the $d$ spanning trees is approximately balanced in the sense that the total population of each tree is approximately balanced.

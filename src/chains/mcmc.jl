@@ -1,4 +1,16 @@
-""""""
+"""
+    run_metropolis_hastings!(partition, proposal, measure, steps, rng;
+                             writer=nothing, output_freq=250,
+                             run_diagnostics=RunDiagnostics())
+
+Run the Metropolis–Hastings sampler in place on `partition`. Each step draws a
+proposal (a single closure, or one sampled from a weighted mixture whose weights must
+sum to 1), multiplies its proposal probability ratio by the energy ratio from
+`measure`, and accepts with that probability — applying accepted moves with
+[`update_partition!`](@ref). `steps` is a step count or an `(initial, final)` range.
+Every `output_freq` steps the current plan and any registered observables/diagnostics
+are written to `writer`.
+"""
 function run_metropolis_hastings!(
     partition::LinkCutPartition,
     proposal::Union{Function,Vector{Tuple{T, Function}}},
@@ -41,7 +53,15 @@ function run_metropolis_hastings!(
     end
 end
 
-""""""
+"""
+    update_partition!(partition, update)
+
+Apply an accepted [`Update`](@ref) to `partition` in place: perform the link/cut
+edits, recompute the two changed districts' roots (swapping their labels if
+`update.swap_link11` requires it), commit the new cross-district edges and the
+node→district assignment, bump `partition.identifier`, and roll each cached energy's
+data forward via [`update_energy_data!`](@ref).
+"""
 function update_partition!(
     partition::LinkCutPartition,
     update::Update{T}
@@ -99,7 +119,12 @@ function update_partition!(
 end
 
 
-""""""
+"""
+    set_step_bounds(steps)
+
+Normalize the `steps` argument to an `(initial_step, final_step)` tuple: a bare count
+`n` becomes `(1, n)`, while a tuple is returned unchanged.
+"""
 @inline function set_step_bounds(steps::Union{Tuple{T,T}, T}) where T<:Int
     if typeof(steps)<:Tuple
         return steps
@@ -109,7 +134,13 @@ end
 end
 
 
-""""""
+"""
+    get_random_proposal(proposal, rng)
+
+Select a proposal to attempt this step, returning `(proposal_fn, index)`. A single
+function is returned as-is (index 1); a weighted mixture is inverse-CDF sampled by
+walking the running cumulative weight, without allocating a cumsum.
+"""
 @inline function get_random_proposal(
     proposal::Union{Function, Vector{Tuple{T, Function}}},
     rng::AbstractRNG
@@ -133,7 +164,12 @@ end
 end
 
 
-""""""
+"""
+    check_proposals_weights(proposal)
+
+Validate a proposal mixture before a run: throw an `ArgumentError` if the mixture
+weights do not sum to 1. A single-function proposal passes trivially.
+"""
 @inline function check_proposals_weights(
     proposal::Union{Function, Vector{Tuple{T, Function}}}
 ) where T<:Real
@@ -150,10 +186,17 @@ end
     end
 end
 
+"""
+    post_step!(proposal_diagnostics, acceptance_ratio, partition, measure, writer, update)
+
+Post-step diagnostics hook (currently records the acceptance ratio into
+`proposal_diagnostics`). Not called on the main MCMC path; retained for diagnostic
+experimentation.
+"""
 function post_step!(
-    proposal_diagnostics::Union{ProposalDiagnostics, Nothing}, 
-    acceptance_ratio::Float64, 
-    partition::LinkCutPartition, 
+    proposal_diagnostics::Union{ProposalDiagnostics, Nothing},
+    acceptance_ratio::Float64,
+    partition::LinkCutPartition,
     measure::Measure,
     writer::Writer,
     update::Update{T}

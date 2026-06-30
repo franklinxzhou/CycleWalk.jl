@@ -1,0 +1,517 @@
+# CycleWalk.jl Public API Reference
+
+This document lists the public API of `CycleWalk.jl`: the functions, types, and
+data structures exported by `using CycleWalk`. They are grouped by the role they
+play in a typical run (build a graph → build a partition → define constraints and
+a target measure → run the MCMC sampler → write an Atlas of samples).
+
+A complete, runnable example using most of this surface lives in
+[`examples/runCycleWalk_ct.jl`](./examples/runCycleWalk_ct.jl). See the
+[README](./README.md) for installation and higher-level documentation.
+
+Conventions used below:
+
+- Arguments after a `;` are keyword arguments.
+- `partition` is a [`LinkCutPartition`](#linkcutpartition).
+- `districts` defaults to all districts (`collect(1:partition.num_dists)`).
+- Energy / score callbacks all share the signature
+  `f(partition, districts=...; update=nothing)` and return a `Float64` (or a
+  `Vector{Float64}` for the per-district `..._scores` / `..._trees` variants).
+
+---
+
+## Table of Contents
+
+- [Graphs](#graphs)
+- [Partition](#partition)
+- [Constraints](#constraints)
+- [Proposals](#proposals)
+- [Measures, Energies & Observables](#measures-energies--observables)
+- [Diagnostics](#diagnostics)
+- [Writer (Atlas output)](#writer-atlas-output)
+- [Running the Sampler](#running-the-sampler)
+- [Chain (convenience wrapper)](#chain-convenience-wrapper)
+- [Data Structures & Types Summary](#data-structures--types-summary)
+
+---
+
+## Graphs
+
+CycleWalk operates on dual graphs of geographic units. The graph types are
+re-exported from `MetropolizedForestRecom.jl`.
+
+### Types
+
+| Type | Description |
+| --- | --- |
+| `AbstractGraph` | Abstract supertype for all graph representations. |
+| `BaseGraph` | A single-level dual graph with node/edge attributes (populations, areas, perimeters, etc.). |
+| `MultiLevelGraph` | A hierarchically-leveled graph (e.g. precinct → county). |
+| `Graph` | Alias for `MultiLevelGraph`. |
+
+### `BaseGraph(filepath, pop_col; ...)`
+
+Construct a base graph from a graph file (`.json`).
+
+```julia
+BaseGraph(
+    filepath::AbstractString,
+    pop_col::AbstractString;
+    inc_node_data::Set{String}=Set(),
+    edge_weights::String="connections",
+    bpop_col=nothing, vap_col=nothing, bvap_col=nothing,
+    area_col=nothing, node_border_col=nothing,
+    edge_perimeter_col=nothing, oriented_nbrs_col=nothing,
+    mcd_col=nothing, adjacency::String="rook"
+)::BaseGraph
+```
+
+### `Graph` / `MultiLevelGraph`
+
+`Graph` is an alias for `MultiLevelGraph`. It can be constructed directly from a
+file (loading a `BaseGraph` and a set of hierarchy levels), as in the example
+script:
+
+```julia
+graph = Graph(pctGraphPath, "POP20", "NAME"; inc_node_data=nodeData,
+              area_col="area", node_border_col="border_length",
+              edge_perimeter_col="length")
+```
+
+### `multi_level_graph(base_graph, levels)`
+
+```julia
+multi_level_graph(base_graph::BaseGraph, levels::Vector{String})::MultiLevelGraph
+```
+
+Build a `MultiLevelGraph` from a `BaseGraph` and a list of level names (keys in
+the node attributes). The levels are reordered from coarsest to finest; the
+hierarchy must be strict (each finer value maps to exactly one coarser value).
+
+### `edge_weight(...)`
+
+Accessor for the weight of an edge between two nodes (re-exported from
+`MetropolizedForestRecom`).
+
+### `modify_edge_weights!(graph, edge_weight_func)`
+
+```julia
+modify_edge_weights!(base_graph::BaseGraph, edge_weight_func::Function)
+modify_edge_weights!(graph::MultiLevelGraph, edge_weight_func::Function)
+```
+
+Recompute every edge weight in place. `edge_weight_func(graph, src, dst)` is
+called for each edge and must return the new weight.
+
+### `build_graph`
+
+Re-exported graph-construction helper from `MetropolizedForestRecom`.
+
+### `cluster_base_graph`
+
+Re-exported helper that clusters a base graph into coarser units.
+
+---
+
+## Partition
+
+### `LinkCutPartition`
+
+The central mutable data structure. It represents a districting plan as a
+spanning forest (one spanning tree per district) maintained in an augmented
+link/cut tree so that proposals can be applied and reverted in `O(log n)`.
+
+```julia
+mutable struct LinkCutPartition <: AbstractPartition
+    num_dists::Int64
+    cross_district_edges::Dict{Tuple{Int64,Int64}, Set{SimpleWeightedEdge}}
+    district_roots::Vector{Int64}
+    roots_to_district::Dict{Int64, Int64}
+    energy_data::Dict{..., AbstractEnergyData}
+    node_to_dist::Vector{Int64}
+    node_to_dist_update::Vector{Int64}
+    lct::LinkCutTree
+    node_col::String
+    graph::BaseGraph
+    node_pops::Vector{Float64}
+    identifier::Int64
+end
+```
+
+#### Constructors
+
+```julia
+# Build from a graph + constraints, drawing an initial balanced plan.
+LinkCutPartition(
+    graph::MultiLevelGraph,
+    constraints::Constraints,
+    num_dists::Int;
+    rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
+    verbose::Bool=false
+)::LinkCutPartition
+
+# Build from an existing MultiLevelPartition.
+LinkCutPartition(
+    partition::MultiLevelPartition,
+    rng::AbstractRNG=PCG.PCGStateOneseq(UInt64)
+)::LinkCutPartition
+```
+
+The first form is the one used in practice: it draws an initial partition that
+satisfies `constraints` and wraps it in a link/cut tree.
+
+### Related re-exported types
+
+| Type | Description |
+| --- | --- |
+| `AbstractPartition` | Abstract supertype for partitions. |
+| `MultiLevelPartition` | The `MetropolizedForestRecom` multi-level partition (used to seed a `LinkCutPartition`). |
+
+---
+
+## Constraints
+
+Constraints restrict the space of valid plans. They are collected into a
+`Constraints` container and enforced during sampling.
+
+### `Constraints` / `initialize_constraints`
+
+```julia
+mutable struct Constraints
+    population_constraint::PopulationConstraint
+    constraints::Vector{AbstractConstraint}
+    descriptions::Vector{String}
+end
+
+Constraints(population_constraint=nothing)::Constraints
+const initialize_constraints = Constraints   # alias
+```
+
+`initialize_constraints()` creates an empty constraint set (with an unbounded
+population constraint by default).
+
+### `add_constraint!` / `push_constraint!`
+
+```julia
+add_constraint!(constraints::Constraints, constraint::AbstractConstraint; desc::String="")
+const push_constraint! = add_constraint!     # alias
+```
+
+Add a constraint. A `PopulationConstraint` replaces the population constraint;
+any other constraint is appended to the list.
+
+### `satisfies_constraint` / `satisfies_constraints`
+
+```julia
+satisfies_constraints(
+    partition::LinkCutPartition,
+    constraints::Constraints,
+    districts=collect(1:partition.num_dists);
+    check_population::Bool=false,
+    update::Union{Update, Nothing}=nothing
+)::Bool
+```
+
+Returns whether the (optionally updated) partition satisfies all constraints.
+`satisfies_constraint` is the per-constraint method dispatched on each
+constraint type.
+
+### Constraint types
+
+| Type | Constructor (key form) | Description |
+| --- | --- | --- |
+| `AbstractConstraint` | — | Abstract supertype. |
+| `PopulationConstraint` | `PopulationConstraint(graph, num_dists, tolerance)` or `PopulationConstraint(min_pop, max_pop)` | Bounds each district's population to `[min_pop, max_pop]`. |
+| `PackRegionConstraint` | `PackRegionConstraint(graph, region; unpack=0, num_dists=0, ideal_pop=0)` | Requires regions to be "packed" with at least their proportional share of whole districts. |
+| `CapRegionDistricts` / `CapRegionDistConstraint` | `CapRegionDistricts(graph, region; excess_split=0, num_dists=0, ideal_pop=0)` | Caps how many districts may touch a region. |
+| `BudgetedRegionConstraint` | `BudgetedRegionConstraint(graph, region; total_budget, num_dists=0, ideal_pop=0, pack_budget=nothing, cap_budget=nothing, budget_mode=:cap_only, rng=nothing)` | Combined pack/cap constraint with a shared split budget. `budget_mode ∈ (:cap_only, :pack_only, :fixed, :random)`. |
+
+---
+
+## Proposals
+
+A proposal is a function `f(partition, rng; diagnostics=nothing)` returning
+`(acceptance_prob_ratio, update)`. The `build_*` functions return such a closure,
+captured against a constraint set. They come in two families:
+
+- **One-tree / internal forest walk** — adds an internal edge and cuts the
+  resulting cycle within a single tree.
+- **Two-tree / lifted cycle walk** — adds two edges between adjacent districts
+  and recuts, moving the boundary between two districts.
+
+```julia
+build_internal_forest_walk(constraints::Constraints)   # one-tree walk
+build_one_tree_cycle_walk    = build_internal_forest_walk   # alias
+
+build_lifted_tree_cycle_walk(constraints::Constraints) # two-tree walk
+build_cycle_walk             = build_lifted_tree_cycle_walk # alias
+build_two_tree_cycle_walk    = build_lifted_tree_cycle_walk # alias
+```
+
+Combine proposals into a weighted mixture (weights must sum to `1`) for
+`run_metropolis_hastings!`:
+
+```julia
+proposal = [(twocycle_frac, build_two_tree_cycle_walk(constraints)),
+            (1.0 - twocycle_frac, build_one_tree_cycle_walk(constraints))]
+```
+
+---
+
+## Measures, Energies & Observables
+
+### `Measure`
+
+```julia
+mutable struct Measure
+    weights::Dict{Function, Float64}
+    scores::Set{Function}
+    descriptions::Dict{Function, String}
+end
+
+Measure()::Measure
+```
+
+The target distribution is `exp(-∑ weightᵢ · scoreᵢ)`. Build it by pushing
+weighted energy/score functions.
+
+### `push_energy!`
+
+```julia
+push_energy!(measure::Measure, score::Function, weight::Real; desc::String="")
+```
+
+Add a weighted score function to the measure. A zero weight is ignored.
+
+### `get_log_energy` / `get_delta_energy`
+
+```julia
+get_log_energy(partition, measure, districts=...; ) ::Float64
+get_delta_energy(partition::LinkCutPartition, measure::Measure, update::Update)
+```
+
+`get_log_energy` evaluates the total weighted log-energy; `get_delta_energy`
+returns the energy ratio `exp(Δ)` for a proposed `update`.
+
+### Energy / score functions
+
+These can be passed to `push_energy!` and/or `push_writer!`. Each has the
+signature `f(partition, districts=...; update=nothing)`.
+
+| Function | Returns | Description |
+| --- | --- | --- |
+| `get_log_spanning_trees` | `Vector{Float64}` | Log spanning-tree count per district. |
+| `get_log_spanning_forests` | `Float64` | Sum of log spanning-tree counts (the spanning-forest energy). |
+| `get_isoperimetric_scores` | `Vector{Float64}` | Per-district isoperimetric (Polsby–Popper) ratio. |
+| `get_isoperimetric_score` | `Float64` | Summed isoperimetric score; kwargs `omit_least_compact`, `pow_on_sum`, `exponent`. |
+| `get_log_linking_edges` | `Float64` | Log product of cross-district linking-edge weights. |
+| `get_log_district_trees` | `Float64` | Log spanning-tree count of the district adjacency graph. |
+| `get_cut_edge_sum` | `Real` | Total weight of cut (cross-district) edges; kwarg `column="connections"`. |
+
+### Geometry / tree observables on a partition
+
+| Function | Description |
+| --- | --- |
+| `get_diameters(partition)` | Diameter of each district's spanning tree. |
+| `get_neighbor_lists(partition)` | Neighbor-list representation of each district tree. |
+| `get_degree_distributions(partition)` | Degree distribution per district tree. |
+| `get_average_degrees(partition)` | Average degree per district tree. |
+| `get_center_moments(partition; p=1)` | `Lᵖ` moment of vertex distances from each tree's center. |
+| `get_center_leaves_moments(partition; p=1)` | `Lᵖ` moment of leaf distances from each tree's center. |
+
+### VRA (Voting Rights Act) scores
+
+```julia
+build_performant_vra_score(graph::BaseGraph, elections::Vector;
+    weights=ones(...), target_districts=nothing, num_dists=nothing,
+    total_pop_col=nothing, mino_pop_col=nothing) -> score_function
+
+build_performant_vra_report(graph::BaseGraph, elections::Vector; <same kwargs>) -> report_function
+
+get_target_vra_districts(graph::BaseGraph, num_dists, total_pop_col, mino_pop_col)::Int
+```
+
+`build_performant_vra_score` returns an energy callback scoring how many
+districts are likely to perform for the minority group; `build_performant_vra_report`
+returns a callback producing a count report; `get_target_vra_districts` computes
+the target number of opportunity districts.
+
+### Partisan observables
+
+```julia
+build_get_partisan_margins(votes1::String, votes2::String) -> observable_function
+build_get_partisan_seats(votes1::String, votes2::String)   -> observable_function
+```
+
+Each returns a callback `f(partition, districts; update)` giving per-district
+margins or the seat count for the two given vote columns. Typically passed to
+`push_writer!`.
+
+---
+
+## Diagnostics
+
+Diagnostics record per-proposal statistics during a run. They live in a
+`RunDiagnostics` container keyed by proposal function.
+
+### Containers
+
+| Type | Description |
+| --- | --- |
+| `RunDiagnostics` | `Dict{Function, Tuple{String, ProposalDiagnostics}}` — diagnostics per proposal. |
+| `ProposalDiagnostics` | `Dict{Type, AbstractProposalDiagnostics}` — diagnostics of a single proposal. |
+
+### `push_diagnostic!`
+
+```julia
+push_diagnostic!(run_diagnostics::RunDiagnostics, proposal::Function,
+                 proposal_diagnostic::AbstractProposalDiagnostics;
+                 desc::String=string(proposal))
+```
+
+Register a diagnostic to be gathered for a given proposal.
+
+### Diagnostic types
+
+Each is constructed with no arguments (e.g. `AcceptanceRatios()`):
+
+| Type | Description |
+| --- | --- |
+| `AcceptanceRatios` | Acceptance-probability ratios per step. |
+| `CycleLengthDiagnostic` | Length of the proposed cycle. |
+| `DeltaNodesDiagnostic` | Number of nodes that changed district. |
+| `DeltaPopDiagnostic` | Population moved between districts. |
+| `CuttableEdgePairsDiagnostic` | Number of valid cuttable edge pairs. |
+| `UniqueCuttableEdgesDiagnostic` | Number of unique cuttable edges. |
+| `MaxSwappablePopulationDiagnostic` | Max population swappable in a proposal. |
+| `AvgSwappablePopulationDiagnostic` | Avg population swappable in a proposal. |
+
+```julia
+run_diagnostics = RunDiagnostics()
+push_diagnostic!(run_diagnostics, cycle_walk, AcceptanceRatios(), desc="cycle_walk")
+push_diagnostic!(run_diagnostics, cycle_walk, CycleLengthDiagnostic())
+```
+
+---
+
+## Writer (Atlas output)
+
+The `Writer` serializes accepted plans and per-step data to an
+[Atlas](https://github.com/jonmjonm/AtlasIO.jl) file (`.jsonl` or `.jsonl.gz`).
+
+### `Writer`
+
+```julia
+Writer(
+    measure::Measure,
+    constraints::Constraints,
+    partition::LinkCutPartition,
+    output_file_path::String;
+    output_districting=true,
+    description::String="",
+    time_stamp=string(Dates.now()),
+    io_mode::String="w",
+    additional_parameters::Dict{String,Any}=Dict{String,Any}()
+)::Writer
+```
+
+Opens the output file and writes the Atlas header (energies, weights, population
+bounds, constraint descriptions, package version, plus any
+`additional_parameters`).
+
+### `push_writer!`
+
+```julia
+push_writer!(writer::Writer, get_data::Function; desc::Union{String,Nothing}=nothing)
+```
+
+Register a per-step observable `get_data(partition)` whose value is written into
+each output map under `desc`.
+
+### `close_writer`
+
+```julia
+close_writer(writer::Writer)
+```
+
+Flush and close the Atlas file. Call once after the run finishes.
+
+---
+
+## Running the Sampler
+
+### `run_metropolis_hastings!`
+
+```julia
+run_metropolis_hastings!(
+    partition::LinkCutPartition,
+    proposal::Union{Function, Vector{Tuple{<:Real, Function}}},
+    measure::Measure,
+    steps::Union{Int, Tuple{Int,Int}},
+    rng::AbstractRNG;
+    writer::Union{Writer, Nothing}=nothing,
+    output_freq::Int=250,
+    run_diagnostics::RunDiagnostics=RunDiagnostics()
+)
+```
+
+Run the Metropolis–Hastings sampler in place on `partition`. `proposal` is either
+a single proposal closure or a weighted mixture (weights summing to `1`).
+`steps` is either a step count or an `(initial, final)` range. Every
+`output_freq` steps the current plan and registered observables/diagnostics are
+written to `writer`.
+
+---
+
+## Chain (convenience wrapper)
+
+`Chain` bundles a proposal, measure, writer, and RNG so a run can be launched
+with a single call.
+
+```julia
+mutable struct Chain{T <: Real}
+    proposal::Union{Function, Vector{Tuple{T, Function}}}
+    measure::Measure
+    writer::Union{Writer, Nothing}
+    rng::AbstractRNG
+end
+
+Chain(proposal::Function, measure::Measure, writer::Union{Writer,Nothing}, rng::AbstractRNG)
+
+run_chain!(partition, chain::Chain, steps::Union{Int, Tuple{Int,Int}})
+```
+
+`run_chain!` wraps `run_metropolis_hastings!` in a `try`/`catch`, returning
+`(0, measure)` on success and `(1, measure)` on error.
+
+---
+
+## Data Structures & Types Summary
+
+| Name | Kind | Module of origin |
+| --- | --- | --- |
+| `AbstractGraph` | abstract type | re-exported (MFR) |
+| `BaseGraph` | struct | re-exported (MFR) |
+| `MultiLevelGraph` / `Graph` | struct / alias | re-exported (MFR) |
+| `AbstractPartition` | abstract type | re-exported (MFR) |
+| `MultiLevelPartition` | struct | re-exported (MFR) |
+| `LinkCutPartition` | mutable struct | CycleWalk |
+| `Constraints` | mutable struct | CycleWalk |
+| `AbstractConstraint` | abstract type | re-exported (MFR) |
+| `PopulationConstraint` | struct | re-exported (MFR) |
+| `PackRegionConstraint` | struct | CycleWalk |
+| `CapRegionDistricts` / `CapRegionDistConstraint` | struct / alias | CycleWalk |
+| `BudgetedRegionConstraint` | struct | CycleWalk |
+| `Measure` | mutable struct | CycleWalk |
+| `Writer` | mutable struct | CycleWalk |
+| `Chain{T}` | mutable struct | CycleWalk |
+| `RunDiagnostics` | type alias (`Dict`) | CycleWalk |
+| `ProposalDiagnostics` | type alias (`Dict`) | CycleWalk |
+| `AcceptanceRatios` | struct | CycleWalk |
+| `CycleLengthDiagnostic` | struct | CycleWalk |
+| `DeltaNodesDiagnostic` | struct | CycleWalk |
+| `DeltaPopDiagnostic` | struct | CycleWalk |
+| `CuttableEdgePairsDiagnostic` | struct | CycleWalk |
+| `UniqueCuttableEdgesDiagnostic` | struct | CycleWalk |
+| `MaxSwappablePopulationDiagnostic` | struct | CycleWalk |
+| `AvgSwappablePopulationDiagnostic` | struct | CycleWalk |

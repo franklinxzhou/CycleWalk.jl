@@ -1,7 +1,7 @@
 # Targets the optimizations merged in the last week:
 #   #3  prefix-sum cuttable-edge search (find_cuttable_edge_pairs / find_first_valid_cut)
 #   #2  cached per-node populations (partition.node_pops)
-#   #1/#2/#3 all claim "bit-identical determinism" -> a reproducibility regression.
+#   #12/#3 all claim "bit-identical determinism" -> a reproducibility regression.
 #
 # The prefix-sum rewrite changed *how* segment populations are summed (O(1) prefix
 # difference instead of an O(path) view-sum) but must return exactly the same set of
@@ -49,7 +49,7 @@ function brute_force_cuttable_pairs(
     return pairs
 end
 
-@testset "prefix-sum cuttable edges (#3)" begin
+@testset "prefix-sum cuttable edges" begin
     # find_cuttable_edge_pairs is typed on ::LinkCutPartition but never touches it;
     # build one real partition just to satisfy the signature.
     cons = initialize_constraints()
@@ -117,7 +117,7 @@ end
         @test isempty(got)
     end
 
-    @testset "node_pops cache equals graph attributes (#2)" begin
+    @testset "node_pops cache equals graph attributes " begin
         bg = small_square_graph.graphs_by_level[end]
         pc = bg.pop_col
         @test length(part.node_pops) == bg.num_nodes
@@ -130,7 +130,7 @@ end
     end
 end
 
-@testset "MCMC determinism after refactors (#1/#2/#3)" begin
+@testset "MCMC determinism " begin
     # The three perf PRs each claim bit-identical output. Same seed -> identical
     # cut-edge histogram, so any future change that perturbs the sampler is caught.
     cons = initialize_constraints()

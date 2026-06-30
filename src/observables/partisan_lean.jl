@@ -1,3 +1,12 @@
+"""
+    VotingData <: AbstractEnergyData
+
+Cache backing the partisan observables for one pair of vote columns. Stores each
+district's two-party vote totals (`dem_votes`, `rep_votes`) and the first party's
+vote-share percentage (`dem_margins`), plus matching `_update` scratch buffers (with
+`-1` in `dem_margins_update` marking "not yet computed"). The "dem"/"rep" naming is
+just first-/second-column convention.
+"""
 mutable struct VotingData <: AbstractEnergyData
     identifier::Int64
     dem_votes::Vector{Float64}
@@ -8,6 +17,12 @@ mutable struct VotingData <: AbstractEnergyData
     dem_margins_update::Vector{Float64}
 end
 
+"""
+    VotingData(partition)
+
+Allocate an empty [`VotingData`](@ref) sized to `partition`'s districts, with the
+identifier one behind the partition's so vote totals are computed on first use.
+"""
 function VotingData(partition::LinkCutPartition)
     identifier = partition.identifier - 1
     dem_votes = Vector{Float64}(undef, partition.num_dists)
@@ -21,10 +36,18 @@ function VotingData(partition::LinkCutPartition)
                       dem_votes_update, rep_votes_update, dem_margins_update)
 end
 
+"""
+    set_vote_data!(partition, votes1, votes2, vote_data, update=nothing)
+
+Recompute each district's `votes1`/`votes2` totals and the first party's vote-share
+percentage into `vote_data`. With `update === nothing` all districts are tallied for
+the current assignment (and the cache identifier synced); with an `update` only the
+changed districts are tallied into the `_update` buffers from the proposed assignment.
+"""
 function set_vote_data!(
-    partition::LinkCutPartition, 
-    votes1::String, 
-    votes2::String, 
+    partition::LinkCutPartition,
+    votes1::String,
+    votes2::String,
     vote_data::VotingData,
     update::Union{Update{T}, Nothing}=nothing
 ) where T<:Int
@@ -67,10 +90,17 @@ function set_vote_data!(
     end
 end
 
-""""""
+"""
+    get_partisan_margins(partition, votes1, votes2, districts=...; update=nothing)::Vector{Float64}
+
+Return each district's first-party vote share (as a percentage,
+`100·votes1/(votes1+votes2)`) for the `votes1`/`votes2` columns, using the cached
+[`VotingData`](@ref) (refreshed if stale, or extended for the changed districts when
+an `update` is given).
+"""
 function get_partisan_margins(
     partition::LinkCutPartition,
-    votes1::String, 
+    votes1::String,
     votes2::String,
     districts::Vector{Int} = collect(1:partition.num_dists);
     update::Union{Update{T}, Nothing}=nothing
@@ -99,10 +129,16 @@ function get_partisan_margins(
     return margins
 end
 
-""""""
+"""
+    get_partisan_seats(partition, votes1, votes2, districts=...; update=nothing)::Float64
+
+Return the number of districts the first party wins for the `votes1`/`votes2` columns
+— the count of districts whose first-party vote share (see
+[`get_partisan_margins`](@ref)) exceeds 50%.
+"""
 function get_partisan_seats(
     partition::LinkCutPartition,
-    votes1::String, 
+    votes1::String,
     votes2::String,
     districts::Vector{Int} = collect(1:partition.num_dists);
     update::Union{Update{T}, Nothing}=nothing
@@ -112,16 +148,28 @@ function get_partisan_seats(
     return length([1 for l in leans if l > 50.0])
 end
 
-""""""
+"""
+    build_get_partisan_margins(votes1, votes2)
+
+Return an observable closure `f(partition, districts; update)` computing
+[`get_partisan_margins`](@ref) for the captured vote columns. Register it with a
+`Writer` to record per-district vote shares each output step.
+"""
 function build_get_partisan_margins(
     votes1::String, votes2::String
 )
-    f(p, d=collect(1:p.num_dists); update=nothing) = 
+    f(p, d=collect(1:p.num_dists); update=nothing) =
                        get_partisan_margins(p, votes1, votes2, d; update=update)
     return f
 end
 
-""""""
+"""
+    build_get_partisan_seats(votes1, votes2)
+
+Return an observable closure `f(partition, districts; update)` computing
+[`get_partisan_seats`](@ref) for the captured vote columns. Register it with a
+`Writer` to record the first party's seat count each output step.
+"""
 function build_get_partisan_seats(
     votes1::String, votes2::String
 )
@@ -131,6 +179,14 @@ function build_get_partisan_seats(
 end
 
 
+"""
+    update_energy_data!(eData::VotingData, partition, update)
+
+Commit the accepted `update` into the voting cache: copy the proposed vote totals and
+margins for the changed districts into the synced fields and reset their scratch
+slots. If any proposed margin was never computed, the scratch buffer is fully
+invalidated so values are recomputed on next query.
+"""
 function update_energy_data!(
     eData::VotingData,
     partition::LinkCutPartition,

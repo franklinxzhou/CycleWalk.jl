@@ -1,4 +1,12 @@
-""""""
+"""
+    get_log_district_trees(partition, districts=...; update=nothing)::Float64
+
+Build the district adjacency graph — one vertex per district, each adjacent pair
+joined by an edge weighted by the total weight of edges crossing between them — and
+return the log number of (weighted) spanning trees of that graph. When an `update` is
+supplied, pairs touching the changed districts use the update's recomputed boundary
+weights. Measures how richly connected the district-level graph is.
+"""
 function get_log_district_trees(
     partition::LinkCutPartition,
     districts::Union{Tuple{Vararg{T}}, Vector{T}}
