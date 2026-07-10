@@ -1,5 +1,13 @@
 #using DataStructures
 
+"""
+    neighbor_list_bfs(graph, start)
+
+Breadth-first search from vertex `start` over a graph given as a neighbor-list
+`Dict`. Returns `(farthest_node, max_distance)`: the vertex at greatest hop
+distance from `start` and that distance. This is the building block of the
+double-sweep tree-diameter computation.
+"""
 function neighbor_list_bfs(graph, start)
     visited = Set()
     queue = Deque{Tuple{Int,Int}}()
@@ -54,9 +62,17 @@ function get_distances_BFS(neighbors, start_vertex)
 end
 
 
+"""
+    neighbor_list_find_tree_diameter(tree)
+
+Return the diameter (longest path length) of a `tree` given as a neighbor-list
+`Dict`, using the standard double-BFS sweep: BFS from an arbitrary vertex to find
+one endpoint of a longest path, then BFS from that endpoint to measure the
+diameter.
+"""
 function neighbor_list_find_tree_diameter(tree)
-    farthest_node, _ = bfs(tree, first(keys(tree)))
-    _, diameter = bfs(tree, farthest_node)
+    farthest_node, _ = neighbor_list_bfs(tree, first(keys(tree)))
+    _, diameter = neighbor_list_bfs(tree, farthest_node)
     return diameter
 end
 

@@ -1,3 +1,13 @@
+"""
+    RegionalSplitData <: AbstractEnergyData
+
+Shared cache of how a `region` attribute splits across districts, used by all of the
+region constraints (pack / cap / budgeted). Maintains the two inverse maps
+`regions_to_dists` (region name → set of districts it touches) and `dists_to_regions`
+(district → set of regions it intersects), plus `_update` copies for a proposed move.
+`identifier` / `update_identifier` track the partition state and proposed update the
+buffers correspond to; `region` is the node-attribute column being split on.
+"""
 mutable struct RegionalSplitData <: AbstractEnergyData
     identifier::Int64
     update_identifier::Vector{Int64}
@@ -8,6 +18,13 @@ mutable struct RegionalSplitData <: AbstractEnergyData
     region::String
 end
 
+"""
+    RegionalSplitData(partition, region)
+
+Build a [`RegionalSplitData`](@ref) for the given `region` attribute by scanning every
+node once and recording, for the current assignment, which districts each region
+touches and which regions each district intersects.
+"""
 function RegionalSplitData(partition::LinkCutPartition, region::String)
     identifier = partition.identifier
     update_identifier = Vector{Int64}(undef, 0)
@@ -28,6 +45,15 @@ function RegionalSplitData(partition::LinkCutPartition, region::String)
                              dists_to_regions_update, region)
 end
 
+"""
+    update_regional_split_data!(data, partition, update)
+
+Recompute the `_update` region↔district maps for the proposed plan. Shallow-copies
+the committed maps (sharing unaffected value sets), drops the entries for the changed
+districts and the regions they touch, and rebuilds just those from the proposed
+assignment `node_to_dist_update`. All nodes are scanned so unchanged districts that
+also contain parts of an affected region are handled correctly.
+"""
 function update_regional_split_data!(
     data::RegionalSplitData,
     partition::LinkCutPartition,
@@ -70,6 +96,13 @@ function update_regional_split_data!(
     end
 end
 
+"""
+    update_energy_data!(data::RegionalSplitData, partition, update)
+
+Commit the accepted `update` into the regional-split cache: ensure the proposed maps
+are current, then make them the committed `regions_to_dists` / `dists_to_regions` and
+sync the identifier.
+"""
 function update_energy_data!(
     data::RegionalSplitData,
     partition::LinkCutPartition,

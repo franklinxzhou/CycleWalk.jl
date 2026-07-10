@@ -1,4 +1,12 @@
-""""""
+"""
+    interpret_constraints(constraints, graph)
+
+Translate a CycleWalk [`Constraints`](@ref) set into the form
+`MetropolizedForestRecom` (MFR) needs to draw an initial plan. Returns
+`(mfr_constraints, level_list)`: the converted MFR constraint container, and the list
+of graph levels (the base levels plus any region levels referenced by region
+constraints). Used by the `LinkCutPartition` constructor to seed a partition.
+"""
 function interpret_constraints(constraints::Constraints, graph::Graph)
     mfr_constraints = mfr_initialize_constraints()
 	mfr_add_constraint!(mfr_constraints, constraints.population_constraint)
@@ -16,11 +24,28 @@ function interpret_constraints(constraints::Constraints, graph::Graph)
     return mfr_constraints, level_list
 end
 
-# Generic fallback (for unsupported types)
-to_mfr_constraint(constraint::AbstractConstraint, graph::Graph) = 
+# `to_mfr_constraint` translates one CycleWalk constraint to a single MFR constraint;
+# `to_mfr_constraints` is the list-valued form (a constraint may map to several).
+# Methods are added per concrete constraint type below.
+
+"""
+    to_mfr_constraint(constraint, graph)
+
+Translate a single CycleWalk constraint into its `MetropolizedForestRecom`
+equivalent. The generic fallback errors; concrete methods are defined for the
+supported constraint types.
+"""
+to_mfr_constraint(constraint::AbstractConstraint, graph::Graph) =
     error("Constraint type $(typeof(constraint)) not supported in MFR.")
 
-# Generic wrapper: old one-output translators become one-element lists
+"""
+    to_mfr_constraints(constraint, graph)
+
+List-valued translation of a CycleWalk constraint to MFR constraints. The generic
+method wraps the single-output [`to_mfr_constraint`](@ref) in a one-element vector;
+constraints that expand to several MFR constraints (e.g.
+[`BudgetedRegionConstraint`](@ref)) add their own method.
+"""
 to_mfr_constraints(constraint::AbstractConstraint, graph::Graph) =
 	[to_mfr_constraint(constraint, graph)]
 
@@ -34,7 +59,12 @@ to_mfr_constraints(constraint::BudgetedRegionConstraint, graph::Graph) =
 	parse_budgeted_region_constraint(constraint)
 # ... etc
 
-""""""
+"""
+    parse_pack_region_constraint(constraint)
+
+Convert a [`PackRegionConstraint`](@ref) to an MFR `PackNodeConstraint`, mapping each
+region's required packed-district count onto its (one-tuple) region node key.
+"""
 function parse_pack_region_constraint(constraint::PackRegionConstraint)
 	node_to_packed_dists = Dict{Tuple{Vararg{String}}, Int}()
 	for (node, packed_dists) in constraint.region_to_packed_dists
@@ -43,7 +73,14 @@ function parse_pack_region_constraint(constraint::PackRegionConstraint)
 	return PackNodeConstraint(node_to_packed_dists, constraint.ideal_pop)
 end
 
-""""""
+"""
+    parse_cap_region_constraint(constraint, graph)
+
+Convert a [`CapRegionDistricts`](@ref) to an MFR `AllowedExcessDistsInCoarseNodes`.
+Each region's district cap is reduced by its minimal proportional district count to
+get the allowed excess; all regions must share a single excess value (asserted),
+which becomes the MFR constraint's `excess_splitting`.
+"""
 function parse_cap_region_constraint(
 	constraint::CapRegionDistricts,
 	graph::Graph
@@ -72,7 +109,13 @@ function parse_cap_region_constraint(
 	return AllowedExcessDistsInCoarseNodes(excess_split, constraint.ideal_pop)
 end
 
-""""""
+"""
+    parse_budgeted_region_constraint(constraint)
+
+Convert a [`BudgetedRegionConstraint`](@ref) into the pair of MFR constraints it
+implies: a `MaxTotalMissingPackedDistsInCoarseNodes` from its pack budget and a
+`MaxTotalExcessDistsInCoarseNodes` from its cap budget.
+"""
 function parse_budgeted_region_constraint(
 	constraint::BudgetedRegionConstraint
 )

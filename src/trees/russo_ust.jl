@@ -1,16 +1,12 @@
 """
-    russo_ust(g, distmx=weights(g))
+    kruskal_rmst(g, rng; minimize=false)
 
-Return a vector of edges representing a uniform spanning tree (potentially weighted)
-of an undirected graph `g` with optional distance matrix (or weights) `distmx` using [Russo's algorithm](https://www.mdpi.com/1999-4893/11/4/53).
-
-### Optional Arguments
-- `steps=nothing`: gives the heuristic presented in the reference above otherwise specify with an int
-- `distmx=weights(g)`: matrix of weights of g
-- `startingTree=dfs_tree(g)`: any tree (can be directed), which will be modified as in Russo's algorithm.
-- `rng=MersenneTwister()`: An AbstractRNG object used for all random choices.
+Return a random spanning tree of the weighted graph `g` as a vector of edges, built
+by Kruskal's algorithm on randomly perturbed weights (each edge's weight is scaled
+by an independent `rand(rng)`). By default edges are added in decreasing perturbed
+weight; `minimize=true` adds them in increasing order. Used to seed `russo_ust`'s
+starting tree.
 """
-
 function kruskal_rmst(
     g::SimpleWeightedGraph,
     rng::AbstractRNG;
@@ -41,6 +37,25 @@ function kruskal_rmst(
 end
 
 # see https://github.com/mauro3/SimpleTraits.jl/issues/47#issuecomment-327880153 for syntax
+"""
+    russo_ust(g, rng=MersenneTwister(); steps=nothing, startingTree=kruskal_rmst(g, rng))
+
+Return a vector of edges representing a (weighted) uniform spanning tree of the
+undirected graph `g`, sampled with the link-and-cut Markov chain of Russo &
+Francisco, *"Linking and Cutting Spanning Trees"*
+([Algorithms 2018, 11(4):53](https://www.mdpi.com/1999-4893/11/4/53)). Each step
+proposes a random graph edge, finds the cycle it would create in the current tree
+(via the link-cut tree path), and either drops the proposed edge or cuts one cycle
+edge — the edge to drop is chosen proportional to inverse weight — mixing toward the
+(weighted) uniform-spanning-tree distribution.
+
+### Optional Arguments
+- `steps=nothing`: number of mixing steps; defaults to the heuristic `ne(g)*log(ne(g))/4`.
+- `startingTree=kruskal_rmst(g, rng)`: spanning tree (as an edge list) the chain
+  starts from; it seeds the internal link-cut tree, which is what the swaps mutate
+  (the `startingTree` vector itself is not modified).
+- `rng=MersenneTwister()`: `AbstractRNG` used for all random choices.
+"""
 function russo_ust(
     g::SimpleWeightedGraph, rng::AbstractRNG=MersenneTwister(); 
     # distmx::AbstractMatrix{T}=SimpleWeightedGraphs.weights(g); 

@@ -1,3 +1,12 @@
+"""
+    CapRegionDistricts <: AbstractConstraint
+
+Constraint capping how many districts may touch each region (a value of the `region`
+node attribute), to limit how finely regions are split. `region_to_dist_cap` records
+the cap per region, `region_to_nodes` the region membership, and `ideal_pop` the
+per-district ideal population the cap was computed from. Also available under the
+alias `CapRegionDistConstraint`. Construct with the method below.
+"""
 struct CapRegionDistricts <: AbstractConstraint
     region_to_nodes::Dict{String, Vector{Int}}
     region_to_dist_cap::Dict{String, Int}
@@ -6,9 +15,17 @@ struct CapRegionDistricts <: AbstractConstraint
     ideal_pop::T where T <: Real
 end
 
+"""Alias for [`CapRegionDistricts`](@ref)."""
 const CapRegionDistConstraint = CapRegionDistricts
 
-""""""
+"""
+    CapRegionDistricts(graph, region; excess_split=0, num_dists=0, ideal_pop=0)
+
+Build a [`CapRegionDistricts`](@ref) on the `region` attribute of `graph`. Each
+region's district cap is `ceil(region_pop / ideal_pop) + excess_split` — its minimal
+proportional district count plus an allowed slack. Provide either `ideal_pop` directly
+or `num_dists` to derive it from the total population.
+"""
 function CapRegionDistricts(
     graph::Graph,
     region::String;

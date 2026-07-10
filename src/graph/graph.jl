@@ -1,6 +1,16 @@
 ## move these functions to MetropolizeForestRecom.jl at some point
 
-""""""
+"""
+    multi_level_graph(base_graph, levels)
+
+Create a [`MultiLevelGraph`](@ref) from `base_graph` and a set of level names
+(keys in `base_graph.node_attributes`), reordered from coarsest to finest.
+
+The hierarchical ordering is inferred from the node attributes: level `A` is treated
+as a parent of level `B` when each value of `B` maps to exactly one value of `A`.
+The hierarchy must be strict and connected with a single root level; ambiguous
+parents, missing levels, or multiple roots raise an error.
+"""
 function multi_level_graph(base_graph::BaseGraph, levels::Vector{String})
     """
     Create a MultiLevelGraph with hierarchically ordered levels.
@@ -97,7 +107,13 @@ function multi_level_graph(base_graph::BaseGraph, levels::Vector{String})
     return MultiLevelGraph(base_graph, ordered_levels)
 end
 
-""""""
+"""
+    is_parent(base_graph, potential_parent, potential_child)::Bool
+
+Return `true` if the level `potential_parent` is a (strict) parent of the level
+`potential_child` in `base_graph`'s node attributes, i.e. `potential_child` is finer:
+every distinct child value maps to exactly one parent value.
+"""
 function is_parent(base_graph::BaseGraph, potential_parent::String, potential_child::String)::Bool
     """
     Check if potential_parent level is a parent of potential_child level.
@@ -125,6 +141,17 @@ function is_parent(base_graph::BaseGraph, potential_parent::String, potential_ch
     return true 
 end
 
+"""
+    modify_edge_weights!(graph, edge_weight_func)
+
+Recompute and overwrite every edge weight of `graph` in place. For each edge,
+`edge_weight_func(base_graph, src, dst)` is called and its return value is stored
+both in the weighted adjacency matrix and in the edge-attribute table.
+
+Two methods are provided: one for a [`BaseGraph`](@ref), and one for a
+[`MultiLevelGraph`](@ref) that updates the underlying base graph and rebuilds the
+per-level views so the multi-level structure stays consistent.
+"""
 function modify_edge_weights!(
     base_graph::BaseGraph,
     edge_weight_func::Function

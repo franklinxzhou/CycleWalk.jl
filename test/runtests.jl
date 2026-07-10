@@ -56,7 +56,12 @@ small_square_graph = MultiLevelGraph(small_square_base_graph, ["pct"])
 
 
 include(joinpath(testdir, "test_linkcuttree.jl"))
+include(joinpath(testdir, "test_option_b.jl"))
+include(joinpath(testdir, "test_cuttable_edges.jl"))
 include(joinpath(testdir, "test_docs_coverage.jl"))
+@testset verbose = true "observables_and_diagnostics" begin
+    include(joinpath(testdir, "test_observables_diagnostics.jl"))
+end
 
 tests = [
     "small_square_p88_unweighted",

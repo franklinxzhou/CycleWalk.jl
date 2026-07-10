@@ -1,10 +1,25 @@
+"""
+    Constraints
+
+Container for the constraints a sampled plan must satisfy. The population
+(balance) constraint is held separately in `population_constraint` because it is
+checked specially; all other constraints live in `constraints`, with parallel
+human-readable `descriptions` for output metadata. Build one with
+[`initialize_constraints`](@ref) and [`add_constraint!`](@ref).
+"""
 mutable struct Constraints
 	population_constraint::PopulationConstraint
 	constraints::Vector{AbstractConstraint}
 	descriptions::Vector{String}
 end
 
-""""""
+"""
+    Constraints(population_constraint=nothing)
+
+Create a constraint set. If `population_constraint` is omitted, an unbounded
+`PopulationConstraint(0, Inf)` is used (add a real one later with
+[`add_constraint!`](@ref)). Also reachable as [`initialize_constraints`](@ref).
+"""
 function Constraints(
 	population_constraint::Union{Nothing,PopulationConstraint}=nothing
 )
@@ -16,10 +31,22 @@ function Constraints(
 	return Constraints(population_constraint, constraints, descriptions)
 end
 
-""""""
+"""
+    initialize_constraints(population_constraint=nothing)
+
+Alias for the [`Constraints`](@ref) constructor; the conventional way to start an
+empty constraint set.
+"""
 const initialize_constraints = Constraints
 
-""""""
+"""
+    add_constraint!(constraints, constraint; desc="")
+
+Add `constraint` to the set. A `PopulationConstraint` replaces the dedicated
+`population_constraint`; any other constraint is appended along with a description
+(defaulting to the constraint's type name, suffixed with its `desc` field when
+present). Also reachable as [`push_constraint!`](@ref).
+"""
 function add_constraint!(
 	constraints::Constraints,
 	constraint::AbstractConstraint;
@@ -46,10 +73,13 @@ function add_constraint!(
 	return
 end
 
-""""""
+"""
+    push_constraint!(constraints, constraint; desc="")
+
+Alias for [`add_constraint!`](@ref).
+"""
 const push_constraint! = add_constraint!
 
-""""""
 # function _apply_constraint_fn(
 # 	satisfies_fn::Function,
 # 	partition,
@@ -140,7 +170,6 @@ const push_constraint! = add_constraint!
 # end
 
 
-""""""
 # function satisfies_constraint(
 #     constraint::PackNodeConstraint,
 #     graph::MultiLevelGraph,
@@ -382,7 +411,6 @@ const push_constraint! = add_constraint!
 # end
 
 
-""""""
 # function satisfies_constraints(
 #     partition::MultiLevelPartition,
 #     constraints::Dict{Type{T} where T<:AbstractConstraint, AbstractConstraint},

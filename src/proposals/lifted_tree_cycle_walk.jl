@@ -1,3 +1,10 @@
+"""
+    get_rand_adjacent_dists(partition, rng)
+
+Pick a uniformly random pair of adjacent districts (a key of
+`partition.cross_district_edges`). Returns `(distPair, prob)` where `prob` is the
+selection probability `1/number_of_adjacent_pairs`, needed for the Hastings ratio.
+"""
 function get_rand_adjacent_dists(
     partition::LinkCutPartition,
     rng::AbstractRNG
@@ -6,6 +13,14 @@ function get_rand_adjacent_dists(
     return distPair, 1/length(partition.cross_district_edges)
 end
 
+"""
+    get_rand_edges(distPair, partition, rng)
+
+Pick two distinct uniformly random boundary edges between the adjacent districts
+`distPair` (the two edges that will be linked to form the cycle). Returns
+`(edge_pair, prob)`, or `(nothing, nothing)` if the pair shares at most one boundary
+edge. `prob` is `1/(m*(m-1))` for `m` boundary edges, for the Hastings ratio.
+"""
 function get_rand_edges(
     distPair::Tuple{Int, Int},
     partition::LinkCutPartition,
@@ -18,6 +33,15 @@ function get_rand_edges(
     return edge_pair, 1/(boundary_edges*(boundary_edges-1))
 end
 
+"""
+    get_paths!(partition, edge_pair)
+
+Given the two boundary edges in `edge_pair`, mutate the link-cut tree (via `evert!`
+/ `expose!`) so that the cycle they create can be read off as two arms, and return
+`(uPath, vPath)`: the tree paths from each linking edge toward the boundary between
+the two districts. The endpoints are reoriented so that `uPath` and `vPath` lie in
+the two different districts.
+"""
 function get_paths!(partition::LinkCutPartition, edge_pair::Tuple)
     u1 = partition.lct.nodes[src(edge_pair[1])]
     v1 = partition.lct.nodes[dst(edge_pair[1])]
@@ -39,9 +63,81 @@ function get_paths!(partition::LinkCutPartition, edge_pair::Tuple)
     return uPath, vPath
 end
 
+"""
+    get_collapsed_cycle_weights(uPath, vPath, partition; field=partition.graph.pop_col)
+
+Return the per-segment weights (population by default) along the cycle formed by the
+two arms `uPath` and `vPath`. Each entry is the weight that would move across the
+boundary if the cycle were cut between two adjacent path vertices. For the hot
+population case this reads the link-cut tree's maintained subtree sums directly
+(`O(log n)` per vertex); for other `field`s it falls back to the whole-tree
+[`topological_sort`](@ref).
+"""
 function get_collapsed_cycle_weights(
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}, 
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
+    partition::LinkCutPartition;
+    field=partition.graph.pop_col
+)::Vector{Float64}
+    # Population path (the hot case): query the maintained PopAug subtree sums
+    # directly -- O(log n) per path vertex, no per-call Dict. Other fields (e.g.
+    # `field=nothing` node counts, used by diagnostics) fall back to the
+    # whole-tree topological_sort.
+    if field == partition.graph.pop_col
+        return get_collapsed_cycle_weights_subpop(uPath, vPath, partition)
+    end
+    return get_collapsed_cycle_weights_topo(uPath, vPath, partition; field=field)
+end
+
+"""
+    get_collapsed_cycle_weights_subpop(uPath, vPath, partition)
+
+Population-only fast path of [`get_collapsed_cycle_weights`](@ref). The cut-population
+of a path vertex is its subtree population when the tree is rooted at the arm's base
+(`u1` / `v1`), queried in `O(log n)` via the augmented link-cut tree; each segment's
+collapsed weight is the difference of adjacent cut-populations.
+"""
+function get_collapsed_cycle_weights_subpop(
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
+    partition::LinkCutPartition,
+)::Vector{Float64}
+    lct = partition.lct
+    u1 = lct.nodes[uPath[1].vertex]
+    v1 = lct.nodes[vPath[1].vertex]
+    path_length = length(uPath) + length(vPath)
+    collapsed_cycle_weight = Vector{Float64}(undef, path_length)
+
+    evert!(u1)                       # root the cycle's u-arm at u1
+    prev = 0.0
+    for ii = 1:length(uPath)
+        # uPath reversed: position ii corresponds to uPath[end-ii+1]
+        cur = subtree_pop(lct.nodes[uPath[end-ii+1].vertex])
+        collapsed_cycle_weight[ii] = ii == 1 ? cur : cur - prev
+        prev = cur
+    end
+
+    evert!(v1)                       # root the v-arm at v1
+    prev = 0.0
+    for ii = 0:(length(vPath)-1)
+        cur = subtree_pop(lct.nodes[vPath[end-ii].vertex])
+        collapsed_cycle_weight[end-ii] = ii == 0 ? cur : cur - prev
+        prev = cur
+    end
+    return collapsed_cycle_weight
+end
+
+"""
+    get_collapsed_cycle_weights_topo(uPath, vPath, partition; field=partition.graph.pop_col)
+
+General fallback of [`get_collapsed_cycle_weights`](@ref) for arbitrary `field`s
+(e.g. node counts). Computes each arm's cut weights with a whole-tree
+[`topological_sort`](@ref) and differences adjacent path vertices to get per-segment
+collapsed weights.
+"""
+function get_collapsed_cycle_weights_topo(
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
     partition::LinkCutPartition;
     field=partition.graph.pop_col
 )::Vector{Float64}
@@ -51,8 +147,6 @@ function get_collapsed_cycle_weights(
     u_cut_pop_dict = topological_sort(u1, partition; field=field)
     v_cut_pop_dict = topological_sort(v1, partition; field=field)
     path_length = length(uPath) + length(vPath)
-    # @show u_cut_pop_dict
-    # @show v_cut_pop_dict
     collapsed_cycle_weight = Vector{Float64}(undef, path_length)
     for ii = 1:length(uPath_rev)
         vertex = uPath_rev[ii].vertex
@@ -74,18 +168,28 @@ function get_collapsed_cycle_weights(
 end
 
 # assumes other cut is at end and 1
+# `pre` holds prefix sums: pre[i+1] == sum(cycle_weights[1:i]), pre[1] == 0, so
+# sum(cycle_weights[a:b]) == pre[b+1] - pre[a].
+"""
+    find_first_valid_cut(pre, initial_cut_index, min_pop, max_pop, totpop_uv)
+
+Starting from `initial_cut_index` and walking *down*, return the smallest cut index
+for which the single cut `(1, index)` keeps both induced segments within
+`[min_pop, max_pop]`. `pre` are the prefix sums of the cycle weights and `totpop_uv`
+the cycle's total. Used to bound the inner loop of [`find_cuttable_edge_pairs`](@ref).
+"""
 function find_first_valid_cut(
-    cycle_weights::Vector, 
-    initial_cut_index::Int, 
-    min_pop::Real, 
-    max_pop::Real,
-    totpop_uv::Real
+    pre::Vector{Float64},
+    initial_cut_index::Int,
+    min_pop::Float64,
+    max_pop::Float64,
+    totpop_uv::Float64
 )
     first_valid_cut = initial_cut_index
     while first_valid_cut > 1
         first_valid_cut -= 1
         @assert first_valid_cut > 0
-        pop1 = sum(@view cycle_weights[1:first_valid_cut])
+        pop1 = pre[first_valid_cut + 1]          # sum(1:first_valid_cut)
         pop2 = totpop_uv - pop1
         if !(min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop)
             first_valid_cut += 1
@@ -95,26 +199,54 @@ function find_first_valid_cut(
     return first_valid_cut
 end
 
+"""
+    find_cuttable_edge_pairs(cycle_weights, initial_cut_index, partition, constraints)
+
+Return the set of `(cut1, cut2)` index pairs whose two induced segments are each
+population-balanced within the constraint's `[min_pop, max_pop]`, excluding the
+current cut `(1, initial_cut_index)`.
+
+PRECONDITION: `initial_cut_index` must itself be a balanced single cut, i.e. both
+`sum(cycle_weights[1:initial_cut_index])` and its complement lie in
+`[min_pop, max_pop]`. In production this always holds because `initial_cut_index`
+is the current district boundary (`length(uPath)`), which satisfies the population
+constraint. `find_first_valid_cut` walks *down* from `initial_cut_index` while the
+single cut stays valid; if the initial index is itself unbalanced the walk stops
+immediately and the search silently under-returns valid pairs. Callers feeding a
+synthetic index (e.g. tests) must respect this.
+"""
 function find_cuttable_edge_pairs(
-    cycle_weights::Vector{U}, 
+    cycle_weights::Vector{U},
     initial_cut_index::Int,
     partition::LinkCutPartition,
     constraints::Constraints
 ) where U <: Real
     path_length = length(cycle_weights)
-    totpop_uv = sum(cycle_weights)
-    min_pop = constraints.population_constraint.min_pop
-    max_pop = constraints.population_constraint.max_pop
+    # Prefix sums so each segment population is an O(1) difference, instead of an
+    # O(path) `sum(@view ...)` recomputed for every (cut1,cut2) pair (which was
+    # O(path^3) and boxed a Float64 each time). For integer populations stored as
+    # Float64 the prefix difference is bit-identical to the view sum.
+    pre = Vector{Float64}(undef, path_length + 1)
+    pre[1] = 0.0
+    @inbounds for i in 1:path_length
+        pre[i + 1] = pre[i] + cycle_weights[i]
+    end
+    totpop_uv = pre[path_length + 1]
+    # concrete Float64 locals: the constraint's min_pop/max_pop fields are
+    # abstract `Real`, which would make every `min_pop <= pop1` a dynamic call
+    # that boxes pop1. For integer bounds the Float64 value is identical.
+    min_pop::Float64 = constraints.population_constraint.min_pop
+    max_pop::Float64 = constraints.population_constraint.max_pop
     possible_pairs = Set{Tuple{Int,Int}}()
 
     ### find valid cut with smallest index when paired with u1,v1
-    first_valid_cut = find_first_valid_cut(cycle_weights, initial_cut_index, 
+    first_valid_cut = find_first_valid_cut(pre, initial_cut_index,
                                            min_pop, max_pop, totpop_uv)
 
     for cut1 = 1:path_length
         found_cut = false
         for cut2 = max(cut1, first_valid_cut):path_length-1
-            pop1 = sum(@view cycle_weights[cut1:cut2])
+            pop1 = pre[cut2 + 1] - pre[cut1]      # sum(cut1:cut2)
             pop2 = totpop_uv - pop1
             if min_pop <= pop1 <= max_pop && min_pop <= pop2 <= max_pop
                 # @show "adding", cut1, cut2, pop1, pop2
@@ -133,10 +265,18 @@ function find_cuttable_edge_pairs(
     return possible_pairs
 end
 
+"""
+    get_node_indices_from_paths(edge_ind, uPath, vPath)
+
+Map a cycle edge index `edge_ind` back to the pair of link-cut tree `Node`s that
+edge connects. The cycle is indexed as: the closing `u`–`v` boundary edge, then up
+the `u` arm, across the far link, then down the `v` arm. Returns the `(node1, node2)`
+endpoints of the indexed edge.
+"""
 function get_node_indices_from_paths(
-    edge_ind::Int, 
-    uPath::Vector{Node},
-    vPath::Vector{Node}
+    edge_ind::Int,
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node}
 )
     if edge_ind==1 
         return (uPath[end], vPath[end])
@@ -150,8 +290,16 @@ function get_node_indices_from_paths(
     end
 end
 
+"""
+    get_cuts_and_links(init_cut_edge_pair, final_cut_edge_pair)
+
+Given the two edges originally added to form the cycle (`init_cut_edge_pair`) and the
+two edges chosen to cut it (`final_cut_edge_pair`), return `(cuts, links)`: the edges
+to actually remove and add to realize the move. If a chosen cut coincides with an
+originally-added edge, that edge cancels out (a 1-tree move), leaving a single link.
+"""
 function get_cuts_and_links(
-    init_cut_edge_pair::Tuple, 
+    init_cut_edge_pair::Tuple,
     final_cut_edge_pair::Tuple
 )
     ie1 = [src(init_cut_edge_pair[1]), dst(init_cut_edge_pair[1])]
@@ -170,6 +318,14 @@ function get_cuts_and_links(
     return cuts, links
 end
 
+"""
+    revert_tentative_proposal!(partition, distPair, links, cuts, old_root1, old_root2)
+
+Undo the in-place link-cut edits made while scoring a proposal: re-cut the edges that
+were linked, re-link the edges that were cut, and restore the district roots and
+`roots_to_district` map to `old_root1`/`old_root2`. Leaves `partition` exactly as it
+was before the tentative move.
+"""
 function revert_tentative_proposal!(
     partition::LinkCutPartition,
     distPair::Tuple{Int, Int},
@@ -202,10 +358,23 @@ function revert_tentative_proposal!(
     evert!(partition.lct.nodes[old_root2])
 end
 
+"""
+    find_proposal_prob_ratio!(partition, distPair, links, cuts,
+                              sum_edge_weight_products, w1w2_cuts_inv,
+                              w1w2_links_inv, swap_link11, constraints)
+
+Tentatively apply the `links`/`cuts` to the link-cut tree, recompute the changed
+districts' roots, assignment, and cross-district edges, and check `constraints`. If
+the proposal is valid, return `(prob, update)` where `prob` is the proposal
+probability ratio (accounting for the change in number of adjacent district pairs,
+the change in boundary-edge counts, and edge-weight factors) and `update` is the
+[`Update`](@ref) describing the move; otherwise return `(0, nothing)`. Either way the
+tentative edits are reverted before returning, so `partition` is left unchanged.
+"""
 function find_proposal_prob_ratio!(
-    partition::LinkCutPartition, 
-    distPair::Tuple{Int, Int}, 
-    links::Vector{Vector{T}}, 
+    partition::LinkCutPartition,
+    distPair::Tuple{Int, Int},
+    links::Vector{Vector{T}},
     cuts::Vector{Vector{T}},
     sum_edge_weight_products::Float64,
     w1w2_cuts_inv::Float64,
@@ -292,8 +461,16 @@ function find_proposal_prob_ratio!(
     return prob, proposal_update
 end
 
+"""
+    get_log_tree_count_ratio(partition, distPair)
+
+Return the change in total log spanning-tree count for the two districts in
+`distPair` under the proposed move: the post-move log counts minus the cached
+pre-move log counts. (Helper for spanning-tree–weighted measures; relies on cached
+per-district `log_tree_counts`.)
+"""
 function get_log_tree_count_ratio(
-    partition::LinkCutPartition, 
+    partition::LinkCutPartition,
     distPair::Tuple{Int, Int}
 )::Float64
     log_tree_count_ratio = 0
@@ -306,10 +483,18 @@ function get_log_tree_count_ratio(
     return log_tree_count_ratio
 end
 
+"""
+    get_link_path_ind(link_ind, uPath, vPath)
+
+Return the cycle position (index into the collapsed cycle) of the vertex `link_ind`,
+which must be one of the four arm endpoints (`uPath`/`vPath` first or last). Used to
+locate the "link11" edge along the cycle for the assignment-swap check. Throws if
+`link_ind` is not one of those endpoints.
+"""
 function get_link_path_ind(
-    link_ind::T, 
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}
+    link_ind::T,
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node}
 )::T where T <: Int
     if uPath[end].vertex == link_ind
         return 1
@@ -324,11 +509,20 @@ function get_link_path_ind(
     end
 end
 
+"""
+    swap_assignment_check(path_ind, edge_inds, uPath, vPath, cycle_weights)::Bool
+
+Determine whether the two new districts' root labels need to be swapped so that each
+keeps a consistent district identity after the cut. It works out which side of the
+two cuts (`edge_inds`) carries the larger population and which side the link-11 edge
+(at `path_ind`) ends up on, returning the parity that
+[`find_proposal_prob_ratio!`](@ref) uses as `swap_link11`.
+"""
 function swap_assignment_check(
-    path_ind::T, 
-    edge_inds::Tuple{T,T}, 
-    uPath::Vector{Node}, 
-    vPath::Vector{Node}, 
+    path_ind::T,
+    edge_inds::Tuple{T,T},
+    uPath::Vector{<:Node},
+    vPath::Vector{<:Node},
     cycle_weights::Vector{Float64}
 )::Bool where T <: Int
     # edge_inds interval assigned to u district?
@@ -362,6 +556,17 @@ function swap_assignment_check(
     # !l11_in_uPath && !l11_in_interval && !uPathToInterval -> t
 end
 
+"""
+    lifted_tree_cycle_walk!(partition, constraints, rng; diagnostics=nothing)
+
+Perform one 2-tree (lifted) cycle-walk proposal. Pick a random adjacent district
+pair and two boundary edges, form the cycle, enumerate the population-balanced cut
+pairs respecting `constraints`, sample one proportional to inverse edge-weight
+products, and score the resulting move. Returns `(prob, update)` — the acceptance
+probability ratio and the [`Update`](@ref) — or `(0, nothing)` if no valid move
+exists. Per-proposal `diagnostics` are gathered along the way. The partition is left
+unchanged; an accepted move is applied later by `update_partition!`.
+"""
 function lifted_tree_cycle_walk!(
     partition::LinkCutPartition,
     constraints::Constraints,
@@ -437,7 +642,15 @@ function lifted_tree_cycle_walk!(
 end
 
 
-""""""
+"""
+    build_lifted_tree_cycle_walk(constraints)
+
+Return a 2-tree cycle-walk proposal closure `f(partition, rng; diagnostics=nothing)`
+that calls [`lifted_tree_cycle_walk!`](@ref) with the captured `constraints`. Exported
+under the aliases `build_cycle_walk` and `build_two_tree_cycle_walk`. The returned
+closure is what gets passed (often in a weighted mixture) to
+[`run_metropolis_hastings!`](@ref).
+"""
 function build_lifted_tree_cycle_walk(
     constraints::Constraints
 )

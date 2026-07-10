@@ -1,3 +1,14 @@
+"""
+    BudgetedRegionConstraint <: AbstractConstraint
+
+Combined pack-and-cap region constraint that, instead of enforcing each region's pack
+and cap requirements strictly, allows a bounded total amount of violation. It carries
+both the per-region packed-district requirements (`region_to_packed_dists`) and
+district caps (`region_to_dist_cap`), together with three budgets: `pack_budget` on
+total pack shortfall, `cap_budget` on total cap excess, and `total_budget` on their
+sum. `budget_mode` records how the pack/cap split was chosen. Construct with the
+method below.
+"""
 struct BudgetedRegionConstraint <: AbstractConstraint
     region_to_nodes::Dict{String, Vector{Int}}
     region_to_packed_dists::Dict{String, Int}
@@ -11,6 +22,22 @@ struct BudgetedRegionConstraint <: AbstractConstraint
     budget_mode::Symbol
 end
 
+"""
+    BudgetedRegionConstraint(graph, region; total_budget, num_dists=0, ideal_pop=0,
+                             pack_budget=nothing, cap_budget=nothing,
+                             budget_mode=:cap_only, rng=nothing)
+
+Build a [`BudgetedRegionConstraint`](@ref) on the `region` attribute of `graph`,
+reusing the baseline pack and cap requirements from [`PackRegionConstraint`](@ref) and
+[`CapRegionDistricts`](@ref). `budget_mode` determines how `total_budget` is split
+between pack and cap:
+- `:cap_only` — all budget goes to cap excess (pack budget 0).
+- `:pack_only` — all budget goes to pack shortfall (cap budget 0).
+- `:fixed` — use the explicit `pack_budget` and `cap_budget` (must sum to ≤ `total_budget`).
+- `:random` — split `total_budget` randomly (requires `rng`).
+
+Provide either `ideal_pop` directly or `num_dists` to derive it.
+"""
 function BudgetedRegionConstraint(
     graph::Graph,
     region::String;

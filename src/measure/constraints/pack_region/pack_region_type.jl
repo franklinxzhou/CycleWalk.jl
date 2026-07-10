@@ -1,3 +1,12 @@
+"""
+    PackRegionConstraint <: AbstractConstraint
+
+Constraint requiring each region (a value of the `region` node attribute) to be
+"packed" with whole districts: at least its proportional share of districts must lie
+entirely inside it. `region_to_packed_dists` records the required count per region,
+`region_to_nodes` the region membership, and `ideal_pop` the per-district ideal
+population the share was computed from. Construct with the method below.
+"""
 struct PackRegionConstraint <: AbstractConstraint
     region_to_nodes::Dict{String, Vector{Int}}
     region_to_packed_dists::Dict{String,Int}
@@ -6,9 +15,17 @@ struct PackRegionConstraint <: AbstractConstraint
     ideal_pop::T where T <: Real
 end
 
-""""""
+"""
+    PackRegionConstraint(graph, region; unpack=0, num_dists=0, ideal_pop=0)
+
+Build a [`PackRegionConstraint`](@ref) on the `region` attribute of `graph`. The
+required packed-district count for each region is `floor(region_pop / ideal_pop) -
+unpack` (only regions with a positive requirement are kept). Provide either
+`ideal_pop` directly or `num_dists` to derive it from the total population; `unpack`
+relaxes the requirement by that many districts.
+"""
 function PackRegionConstraint(
-    graph::Graph, 
+    graph::Graph,
     region::String;
     unpack::Int=0,
     num_dists::Int=0,

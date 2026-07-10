@@ -1,7 +1,15 @@
+"""
+    satisfies_constraint(partition, pack_region_constraint, districts=...; update=nothing)::Bool
+
+Check the [`PackRegionConstraint`](@ref) against `partition` (or the plan implied by
+`update`). Uses the cached [`RegionalSplitData`](@ref) region↔district maps (rebuilt
+if stale, extended for a proposed `update`), then delegates to the low-level method.
+With an `update`, only the changed districts' regions are checked.
+"""
 function satisfies_constraint(
     partition::LinkCutPartition,
     pack_region_constraint::PackRegionConstraint,
-    districts::Union{Tuple{Vararg{T}}, Vector{T}} 
+    districts::Union{Tuple{Vararg{T}}, Vector{T}}
         = collect(1:partition.num_dists);
     update::Union{Update, Nothing}=nothing
 )::Bool where T<:Int
@@ -35,6 +43,14 @@ function satisfies_constraint(
                                 active_dists_to_regions)
 end
 
+"""
+    satisfies_constraint(pack_region_constraint, districts, regions_to_dists, dists_to_regions)::Bool
+
+Low-level pack check from the region↔district maps. For each region required to be
+packed, count the districts that lie *entirely* within it (their only region is this
+one); the constraint holds iff that exclusive count meets the region's required
+packed-district count for every region touched by `districts`.
+"""
 function satisfies_constraint(
     pack_region_constraint::PackRegionConstraint,
     districts::Union{Tuple{Vararg{T}}, Vector{T}},

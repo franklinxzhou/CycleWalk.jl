@@ -1,3 +1,10 @@
+"""
+    set_all!(vec, value=0)
+
+Recursively set every scalar entry of a (possibly nested) vector to `value`,
+descending into inner vectors and leaving the nesting structure intact. Only
+entries whose type matches `typeof(value)` are overwritten. Returns `vec`.
+"""
 function set_all!(
 	vec::Vector, value::T = 0
 ) where {T <: Real}
@@ -11,10 +18,16 @@ function set_all!(
     return vec
 end
 
-# Assumes dst and src are vectors of vectors with the same 
-# structure/length/types
+"""
+    recursive_copy!(dst, src)
+
+Deep-copy the contents of `src` into `dst` in place, recursing into nested vectors
+so that `dst`'s inner buffers are reused rather than reallocated. Assumes `dst` and
+`src` have identical nesting structure, lengths, and element types (asserted at each
+level).
+"""
 function recursive_copy!(
-	dst::Vector, 
+	dst::Vector,
 	src::Vector
 )
 	@assert length(dst) == length(src)

@@ -1,3 +1,27 @@
+"""
+    LinkCutPartition <: AbstractPartition
+
+A districting plan represented as a spanning forest — one spanning tree per
+district — stored in an augmented link-cut tree (`lct`) so that cycle-walk
+proposals can link/cut edges and query subtree populations in `O(log n)`.
+
+Key fields:
+- `num_dists`: number of districts.
+- `lct`: the population-augmented `LinkCutTree` holding the spanning forest.
+- `district_roots` / `roots_to_district`: the link-cut root vertex of each district
+  and the inverse map.
+- `node_to_dist` / `node_to_dist_update`: current and tentative (proposed) district
+  assignment of each node.
+- `cross_district_edges`: for each adjacent district pair, the set of graph edges
+  crossing between them (the candidate cut/link edges).
+- `energy_data`: cache of incrementally-maintained per-energy data
+  (`AbstractEnergyData`), keyed by energy type.
+- `node_col`, `graph`, `node_pops`: the node-id column, base graph, and a concrete
+  cache of per-node populations.
+- `identifier`: a counter bumped on every accepted update, used to invalidate caches.
+
+Construct one with the [`LinkCutPartition`](@ref) constructors rather than directly.
+"""
 mutable struct LinkCutPartition <: AbstractPartition
     num_dists::Int64
     cross_district_edges::Dict{Tuple{Int64,Int64}, Set{SimpleWeightedEdge}}
@@ -10,11 +34,19 @@ mutable struct LinkCutPartition <: AbstractPartition
     lct::LinkCutTree
     node_col::String
     graph::BaseGraph
+    node_pops::Vector{Float64}   # cached graph.node_attributes[ni][pop_col], concrete
     identifier::Int64
     # update_identifier::Int64
 end
 
-""""""
+"""
+    LinkCutPartition(partition::MultiLevelPartition, rng=PCG.PCGStateOneseq(UInt64))
+
+Build a `LinkCutPartition` from an existing `MultiLevelPartition` by drawing a
+random spanning tree (Wilson's algorithm) of each district's subgraph and loading
+all of the trees into a single population-augmented link-cut tree. District roots,
+node-to-district assignments, and cross-district edges are computed from the result.
+"""
 function LinkCutPartition(
     partition::MultiLevelPartition,
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64)
@@ -37,7 +69,12 @@ function LinkCutPartition(
         edges = [edges; tree_edges]
     end
 
-    lct = link_cut_tree(base_graph.simple_graph, edges)
+    # PopAug tree: carries per-node population so subtree populations are
+    # maintained incrementally (see get_collapsed_cycle_weights / subtree_pop).
+    pop_col = base_graph.pop_col
+    pops = Float64[Float64(base_graph.node_attributes[ni][pop_col])
+                   for ni in 1:base_graph.num_nodes]
+    lct = pop_link_cut_tree(base_graph.simple_graph, edges, pops)
     district_roots, roots_to_district = get_district_roots(lct)
     @assert length(district_roots) == partition.num_dists
 
@@ -50,15 +87,25 @@ function LinkCutPartition(
                            district_roots, roots_to_district, energy_data,
                            node_to_dist, node_to_dist_update, lct,
                            partition.graph.levels[1], base_graph,
-                           identifier)#, identifier)
+                           pops, identifier)#, identifier)
     assign_district_map!(lcp)
     find_cross_district_edges!(lcp)
     return lcp
 end
 
-""""""
+"""
+    LinkCutPartition(graph::MultiLevelGraph, constraints, num_dists;
+                     rng=PCG.PCGStateOneseq(UInt64), verbose=false)
+
+Build an initial `LinkCutPartition` of `graph` into `num_dists` districts that
+satisfies `constraints`. The constraints are interpreted to determine the graph
+levels, an initial balanced `MultiLevelPartition` is drawn, flattened to a
+node-to-district assignment, and wrapped in a link-cut tree. The resulting plan is
+asserted to satisfy `constraints` (including population). This is the constructor
+used in practice to seed a run.
+"""
 function LinkCutPartition(
-    graph::MultiLevelGraph, 
+    graph::MultiLevelGraph,
     constraints::Constraints,
     num_dists::U;
     rng::AbstractRNG=PCG.PCGStateOneseq(UInt64),
@@ -80,7 +127,14 @@ function LinkCutPartition(
     return lct_partition;
 end
 
-""""""
+"""
+    get_district_roots(lct)
+
+Scan every node of the link-cut tree `lct` and collect the distinct tree roots,
+returning `(district_roots, roots_to_district)`: a vector of root vertices (one per
+connected tree / district) and a `Dict` mapping each root vertex back to its
+district index.
+"""
 function get_district_roots(lct::LinkCutTree)
     district_roots = Vector{Int}(undef, 0)
     roots_to_district = Dict{Int, Int}()
@@ -94,7 +148,17 @@ function get_district_roots(lct::LinkCutTree)
     return district_roots, roots_to_district
 end
 
-""""""
+"""
+    find_cross_district_edges!(lcp, districts=1:lcp.num_dists,
+                               cross_district_edges=lcp.cross_district_edges;
+                               update=false)
+
+Recompute the cross-district (boundary) edges incident to `districts` and store them
+in `cross_district_edges`, keyed by the ordered district pair. Uses the current
+assignment `lcp.node_to_dist`, or the tentative `lcp.node_to_dist_update` when
+`update=true`. Work is delegated to a typed inner worker (a function barrier over the
+weight matrix) so the boundary-finding BFS specializes and stays allocation-light.
+"""
 function find_cross_district_edges!(
     lcp::LinkCutPartition,
     districts::Vector{Int} = collect(1:lcp.num_dists),
@@ -119,6 +183,16 @@ function find_cross_district_edges!(
                                        nv(simple_graph))
 end
 
+"""
+    _find_cross_district_edges!(lcp, districts, cross_district_edges,
+                                node_to_dist, wmat, num_nodes)
+
+Typed worker behind [`find_cross_district_edges!`](@ref). Performs a BFS from each
+district root over the concrete CSC weight matrix `wmat`, reading each neighbor's
+weight straight from the column; intra-district edges extend the BFS, inter-district
+edges are recorded under their ordered district-pair key. Zero-weight entries are
+skipped. Returns `cross_district_edges`.
+"""
 function _find_cross_district_edges!(
     lcp::LinkCutPartition,
     districts::Vector{Int},
@@ -159,11 +233,19 @@ function _find_cross_district_edges!(
     return cross_district_edges
 end
 
+"""
+    assign_district_map!(partition, districts=1:partition.num_dists; update=false)
+
+Walk each district's link-cut tree from its root and write that district's index
+into every member node of the assignment vector — `partition.node_to_dist`, or the
+tentative `partition.node_to_dist_update` when `update=true`. Used to (re)materialize
+the flat node→district map after the forest structure changes.
+"""
 function assign_district_map!(
-    partition::LinkCutPartition, 
+    partition::LinkCutPartition,
     districts::Vector{Int} = collect(1:partition.num_dists);
     update = false
-) 
+)
     if update
         node_to_dist = partition.node_to_dist_update
     else 
@@ -183,19 +265,29 @@ function assign_district_map!(
                     push!(queue, node.children[ii])
                 end
             end
-            for n in node.pathChildren
-                push!(queue, n)
+            c = first_path_child(node)
+            while c !== nothing
+                push!(queue, c)
+                c = next_path_sibling(c)
             end
         end
     end
 end
 
+"""
+    sum_cc(node, partition, field, start=true)
+
+Sum the node-attribute `field` over the entire connected component (district tree)
+containing `node`, recursing through both the splay-tree children and the
+path-children of the link-cut representation. `start=true` exposes `node` first; the
+recursive calls pass `start=false`.
+"""
 function sum_cc(
-    node::Node, 
-    partition::LinkCutPartition, 
-    field::String, 
+    node::Node,
+    partition::LinkCutPartition,
+    field::String,
     start=true
-) 
+)
     if start
         expose!(node)
     end
@@ -205,40 +297,56 @@ function sum_cc(
             sum += sum_cc(node.children[ii], partition, field, false)
         end
     end
-    for n in node.pathChildren
-        sum += sum_cc(n, partition, field, false)
+    c = first_path_child(node)
+    while c !== nothing
+        sum += sum_cc(c, partition, field, false)
+        c = next_path_sibling(c)
     end
     return sum
 end
 
 
+"""
+    topological_sort!(cut_remainder, node, source, partition, field, reversed=false, mass=0.0)
+
+Recursive worker for [`topological_sort`](@ref). Traverses the link-cut subtree at
+`node` (honoring lazy `reversed` flags), accumulating into `cut_remainder[v]` the
+subtree weight that would be separated from the root if the edge above `v` were cut.
+`field` selects the node attribute summed (or `nothing` to count nodes); `mass`
+carries the running weight contributed by ancestors. Returns the total weight of the
+subtree rooted at `node`.
+"""
 function topological_sort!(
-    cut_remainder::Dict{Int, Real}, 
-    node::Union{Node, Nothing}, 
+    cut_remainder::Dict{Int, Float64},
+    node::Union{Node, Nothing},
     source::Node,
     partition::LinkCutPartition,
     field::Union{Nothing,String},
     reversed::Bool=false,
-    mass::Real=0,
+    mass::Float64=0.0,
 )
     if node === nothing
-        return 0
+        return 0.0
     end
 
-    remainder = 0
+    remainder = 0.0
     reversed ⊻= node.reversed
     if !reversed; lc,rc = 1,2; else lc,rc=2,1 end
     remainder += topological_sort!(cut_remainder, node.children[rc], node, 
                                    partition, field, reversed, mass)
-    for n in node.pathChildren
-        remainder += topological_sort!(cut_remainder, n, node, partition, field)
+    c = first_path_child(node)
+    while c !== nothing
+        remainder += topological_sort!(cut_remainder, c, node, partition, field)
+        c = next_path_sibling(c)
     end
-    
+
     index = node.vertex
-    node_val = 1 # if nothing, just count nodes
+    # typed local: the `node_attributes` read is `Any`, so assert Float64 to keep
+    # inference concrete and avoid boxing the result and everything downstream.
+    node_val::Float64 = 1.0 # if nothing, just count nodes
     if field !== nothing
         node_val = partition.graph.node_attributes[index][field]
-    end 
+    end
     cut_remainder[index] = remainder + node_val + mass
 
     if source != node.children[lc]
@@ -249,9 +357,18 @@ function topological_sort!(
     return remainder + node_val
 end
 
-function topological_sort(root::Node, partition::LinkCutPartition; 
+"""
+    topological_sort(root, partition; field=partition.graph.pop_col)
+
+Root the district tree at `root` and return a `Dict` mapping each vertex `v` to its
+"cut weight": the total `field` value (population by default; node count if
+`field=nothing`) of the subtree hanging below `v`. Cutting the edge just above `v`
+would separate exactly that much weight from `root`. This is the whole-tree fallback
+used by [`get_collapsed_cycle_weights`](@ref) for non-population fields.
+"""
+function topological_sort(root::Node, partition::LinkCutPartition;
                           field::Union{Nothing,String}=partition.graph.pop_col)
-    cut_remainder = Dict{Int,Real}()
+    cut_remainder = Dict{Int,Float64}()
     evert!(root)
     if !root.reversed; lc,rc = 1,2; else lc,rc=2,1 end
 
@@ -263,10 +380,12 @@ function topological_sort(root::Node, partition::LinkCutPartition;
     total = topological_sort!(cut_remainder, root.children[rc], root, 
                               partition, field, root.reversed)
 
-    for n in root.pathChildren
-        total += topological_sort!(cut_remainder, n, root, partition, field)
+    c = first_path_child(root)
+    while c !== nothing
+        total += topological_sort!(cut_remainder, c, root, partition, field)
+        c = next_path_sibling(c)
     end
-    root_pop = 1 # if field === nothing, just count number of nodes
+    root_pop::Float64 = 1.0 # if field === nothing, just count number of nodes
     if field !== nothing
         root_pop = partition.graph.node_attributes[root.vertex][field]
     end

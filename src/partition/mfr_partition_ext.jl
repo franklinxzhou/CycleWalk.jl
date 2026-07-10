@@ -1,4 +1,10 @@
-""""""
+"""
+    flatten_assignment(partition::MultiLevelPartition)
+
+Flatten a `MultiLevelPartition` to a base-node district assignment: a `Dict` mapping
+each finest-level node (keyed by a one-tuple of its node id) to its district index.
+Used to hand a multi-level seed plan to the `LinkCutPartition` constructor.
+"""
 function flatten_assignment(
     partition::MultiLevelPartition
 )::Dict{Tuple{Vararg{String}}, Int}
